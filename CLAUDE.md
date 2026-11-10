@@ -1,7 +1,7 @@
 # research_tools
 
 FWR（羽ばたきロータ機）研究用の小さなWebツール集。GitHub Pages（main ブランチ / root）で公開。
-公開URL: https://skmax3.github.io/research_tools/
+公開URL: https://skmax3.github.io/Research_tools/
 
 ## ルール
 - ユーザーは学部4年の機械工学科学生。返答・UI・コメントは日本語。GitHub操作には不慣れなので手順は具体的に。

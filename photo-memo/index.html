@@ -172,7 +172,7 @@ const EMBED=(()=>{try{return window.self!==window.top}catch(_){return true}})();
 let orig=null, base=null, adj={b:0,c:0,s:0};
 let objs=[], sel=null, tool='arrow', color=COLORS[0], sizeI=1, unit=2;
 let sc=1, ox=0, oy=0, dpr=1, W=0, H=0;
-let hist=[], hi=-1, cropR=null, act=null, lastTap=null, spaceDown=false;
+let hist=[], hi=-1, cropR=null, act=null, lastTap=null, spaceDown=false, lp=null;
 const ptrs=new Map();
 
 /* ---------- utils ---------- */
@@ -287,6 +287,30 @@ function draw(){
     const r=normR(cropR);ctx.save();ctx.fillStyle='rgba(0,0,0,.55)';ctx.beginPath();ctx.rect(0,0,base.width,base.height);ctx.rect(r.x,r.y,r.w,r.h);ctx.fill('evenodd');
     ctx.strokeStyle='#fff';ctx.lineWidth=2/sc;ctx.setLineDash([8/sc,6/sc]);ctx.strokeRect(r.x,r.y,r.w,r.h);ctx.restore();
   }
+  if(lp)drawLoupe(lp);
+}
+/* ルーペ: タッチ操作中、指で隠れる位置を画面上部に拡大表示 */
+const LR=62, LZ=3;
+function drawLoupe(s){
+  const cx=s.x<W/2?W-LR-12:LR+12, cy=LR+12, z=Math.min(sc*LZ,60), p=toImg(s);
+  ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.beginPath();ctx.arc(cx,cy,LR,0,Math.PI*2);ctx.save();ctx.clip();
+  ctx.fillStyle='#222';ctx.fillRect(cx-LR,cy-LR,LR*2,LR*2);
+  const k=dpr*z;ctx.setTransform(k,0,0,k,dpr*(cx-p.x*z),dpr*(cy-p.y*z));
+  ctx.drawImage(base,0,0);
+  ctx.save();ctx.beginPath();ctx.rect(0,0,base.width,base.height);ctx.clip();
+  for(const o of objs)drawObj(ctx,o,k);ctx.restore();
+  if(cropR){const r=normR(cropR);ctx.strokeStyle='#fff';ctx.lineWidth=2/z;ctx.strokeRect(r.x,r.y,r.w,r.h)}
+  ctx.restore();ctx.setTransform(dpr,0,0,dpr,0,0);
+  for(const [w,c] of [[3,'rgba(255,255,255,.9)'],[1,'#0a84ff']]){ctx.lineWidth=w;ctx.strokeStyle=c;ctx.beginPath();
+    ctx.moveTo(cx-14,cy);ctx.lineTo(cx-4,cy);ctx.moveTo(cx+4,cy);ctx.lineTo(cx+14,cy);
+    ctx.moveTo(cx,cy-14);ctx.lineTo(cx,cy-4);ctx.moveTo(cx,cy+4);ctx.lineTo(cx,cy+14);ctx.stroke()}
+  ctx.beginPath();ctx.arc(cx,cy,LR,0,Math.PI*2);ctx.lineWidth=3;ctx.strokeStyle='#fff';ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=8;ctx.stroke();
+  ctx.restore();
+}
+function updLoupe(e,s){
+  const a=act,on=e.pointerType!=='mouse'&&ptrs.size===1&&a&&(a.k==='crop'||(a.k==='create'&&a.o.t!=='pen')||(a.k==='drag'&&a.moved&&a.h!=='move'));
+  lp=on?s:null;
 }
 
 /* ---------- 当たり判定 ---------- */
@@ -412,7 +436,7 @@ cv.addEventListener('pointerdown',e=>{
   if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   const s=pos(e);ptrs.set(e.pointerId,s);
-  if(ptrs.size===2){cancelAct();startPinch();return}
+  if(ptrs.size===2){lp=null;cancelAct();startPinch();return}
   if(ptrs.size>2)return;
   hideMenus();
   const p=toImg(s);
@@ -459,11 +483,12 @@ cv.addEventListener('pointermove',e=>{
       else o.b=(o.t==='arrow'||o.t==='dim')?snap(o.a,p,e.shiftKey):p;
       break;}
   }
-  render();
+  updLoupe(e,s);render();
 });
 function endPtr(e){
   if(!ptrs.has(e.pointerId))return;
   const s=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);
+  if(lp){lp=null;render()}
   if(!act)return;
   if(act.k==='pinch'){if(ptrs.size<2)act={k:'none'};return}
   if(ptrs.size>0)return;

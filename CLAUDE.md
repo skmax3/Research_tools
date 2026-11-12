@@ -4,6 +4,7 @@ FWR（羽ばたきロータ機）研究用の小さなWebツール集。GitHub P
 公開URL: https://skmax3.github.io/Research_tools/
 
 ## ルール
+- 作業の前に `ROADMAP.md`（アプリ一覧・進み具合）と、触るアプリのフォルダ内の `SPEC.md` / `CLAUDE.md` を読む。終わったら `ROADMAP.md` の状態を更新する。
 - ユーザーは学部4年の機械工学科学生。返答・UI・コメントは日本語。GitHub操作には不慣れなので手順は具体的に。
 - 1ツール = 1フォルダ（例 `photo-memo/`）。外部ライブラリ・ビルド不要の静的ファイルで作る（index.html にCSS/JSを内包が基本）。
 - スマホ（iPhone Safari）と Mac の両方で使えること。ホーム画面アプリ化のため各フォルダに

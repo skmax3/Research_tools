@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="クリップ帳">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>クリップ帳</title>
+<style>
+:root{--bg:#f2f2f5;--panel:#ffffff;--ink:#1c1c1e;--muted:#6e6e73;--line:#d9d9de;--accent:#0a84ff;--accent-ink:#ffffff;--chip:#f0f0f3;--danger:#ff3b30;--pin:#ff9f0a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#16181d;--panel:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--chip:#2a2d34}}
+:root[data-theme="dark"]{--bg:#16181d;--panel:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--chip:#2a2d34}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);min-height:100dvh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 8px) 12px 8px}
+.bar{display:flex;align-items:center;gap:6px;max-width:900px;margin:0 auto}
+.bar h1{font-size:17px;margin:0 6px 0 2px;white-space:nowrap;flex:1}
+.tb{display:flex;align-items:center;gap:6px;padding:8px 11px;border-radius:10px;min-height:40px;background:var(--chip);white-space:nowrap}
+.tb.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+@media (max-width:520px){.tb span.opt{display:none}}
+.bar2{display:flex;gap:8px;align-items:center;max-width:900px;margin:8px auto 0}
+#q{flex:1;min-width:0;font:inherit;font-size:16px;padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.seg{display:flex;background:var(--chip);border-radius:9px;padding:2px;flex:none}
+.seg button{padding:5px 10px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+main{max-width:900px;margin:0 auto;padding:12px 12px 40px}
+#add{display:flex;gap:8px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px}
+#addText{flex:1;min-width:0;font:inherit;font-size:16px;border:0;background:none;color:var(--ink);resize:none;padding:6px;max-height:40vh;outline:none}
+#addBtn{flex:none}
+#add.drag{outline:3px dashed var(--accent);outline-offset:2px}
+.hint{color:var(--muted);font-size:12px;margin:6px 4px 14px}
+#list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.card.pinned{border-color:var(--pin)}
+.card .body{display:block;width:100%;text-align:left;padding:10px 12px;flex:1;min-height:60px}
+.card .body:hover,.card .body:focus-visible{background:var(--chip)}
+.card .txt{white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden;font-size:14px}
+.card .img{display:block;width:100%;max-height:220px;object-fit:contain;background:repeating-conic-gradient(var(--chip) 0 25%,transparent 0 50%) 0 0/16px 16px;border-radius:8px}
+.card .note{color:var(--muted);font-size:12.5px;margin-top:6px;word-break:break-word}
+.card .foot{display:flex;align-items:center;gap:2px;padding:2px 4px 4px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.card .foot .meta{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .foot button{padding:7px;border-radius:8px}
+.card .foot button:hover{background:var(--chip);color:var(--ink)}
+.card .foot button.on{color:var(--pin)}
+.card .foot svg.i{width:18px;height:18px}
+.card.flash{animation:fl .5s}
+@keyframes fl{from{background:color-mix(in srgb,var(--accent) 25%,var(--panel))}}
+#empty{text-align:center;color:var(--muted);padding:40px 16px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:max(50px,env(safe-area-inset-top)) 12px 12px;z-index:20;overflow:auto}
+.sheet{background:var(--panel);border-radius:16px;padding:16px;width:min(480px,100%);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.sheet h3{margin:0 0 10px;font-size:16px}
+.sheet h4{margin:14px 0 4px;font-size:14px}
+.sheet p,.sheet ol{margin:4px 0;font-size:13.5px}
+.sheet ol{padding-left:20px}
+.sheet .muted{color:var(--muted);font-size:12.5px}
+.sheet textarea,.sheet input[type=text]{width:100%;font:inherit;font-size:16px;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.sheet label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.sheet img{max-width:100%;max-height:40vh;display:block;margin:0 auto;border-radius:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.row button{flex:1;padding:11px;border-radius:10px;background:var(--chip);white-space:nowrap}
+.row button.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.row button.danger{color:var(--danger)}
+.col{flex-direction:column}
+.col button{text-align:left}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(30,30,30,.94);color:#fff;padding:10px 14px;border-radius:12px;font-size:13.5px;z-index:30;transition:opacity .25s;opacity:0;pointer-events:none;display:flex;gap:12px;align-items:center;max-width:92%}
+#toast.show{opacity:1;pointer-events:auto}
+#toast button{color:#64b5ff;font-weight:600;padding:2px 4px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>クリップ帳</h1>
+    <button class="tb primary" id="bPaste" title="クリップボードの内容を追加（⌘V でも可）"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg><span class="opt">貼り付け</span></button>
+    <button class="tb" id="bPhoto" title="写真・画像ファイルを追加"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-9 8"/></svg><span class="opt">画像</span></button>
+    <button class="tb" id="bSync" title="iPhone と Mac の同期・バックアップ"><svg class="i" viewBox="0 0 24 24"><path d="M20 11a8 8 0 00-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0014.3 4.9L20 16M20 20v-4h-4"/></svg><span class="opt">同期</span></button>
+  </div>
+  <div class="bar2">
+    <input id="q" type="search" placeholder="検索（/ キー）" autocomplete="off">
+    <div class="seg" id="filt"><button data-f="all" class="on">すべて</button><button data-f="text">文</button><button data-f="image">画像</button><button data-f="pin" title="ピン留め">★</button></div>
+  </div>
+</header>
+
+<main>
+  <div id="add">
+    <textarea id="addText" rows="1" placeholder="テキストを入力・貼り付けして追加（画像の貼り付けもOK）"></textarea>
+    <button class="tb primary" id="addBtn" title="追加（⌘Enter）">追加</button>
+  </div>
+  <p class="hint">カードをタップでコピー。⌘V・ドラッグ&ドロップでも追加できます。データはこの端末の中だけに保存されます。</p>
+  <ul id="list"></ul>
+  <div id="empty" hidden></div>
+</main>
+
+<div class="ov" id="edit" hidden><div class="sheet">
+  <h3 id="eTitle">編集</h3>
+  <img id="eImg" alt="" hidden>
+  <div id="eTextWrap"><label for="eText">テキスト</label><textarea id="eText" rows="8"></textarea></div>
+  <label for="eNote">メモ（検索用・任意）</label><input id="eNote" type="text" placeholder="例: 第3回実験 ロータ回転数">
+  <div class="row"><button id="eCancel">キャンセル</button><button class="primary" id="eOk">保存</button></div>
+</div></div>
+
+<div class="ov" id="sync" hidden><div class="sheet">
+  <h3>同期・バックアップ</h3>
+  <p>クリップ帳は外部サーバーを使わないので、<b>同期ファイル</b>を受け渡して同期します。読み込むと両方の内容がまとめられ、削除や編集も新しいほうが反映されます。</p>
+  <div class="row col">
+    <button class="primary" id="sExport">⬆️ 同期ファイルを書き出す</button>
+    <button id="sImport">⬇️ 同期ファイルを読み込む</button>
+  </div>
+  <h4>iPhone → Mac</h4>
+  <ol><li>iPhone で「書き出す」→ 共有メニューで <b>AirDrop</b> → 自分の Mac</li><li>Mac で「読み込む」→ ダウンロードフォルダのファイルを選ぶ</li></ol>
+  <h4>Mac → iPhone</h4>
+  <ol><li>Mac で「書き出す」→ 共有メニューで <b>AirDrop</b>（またはファイルを iCloud Drive に移す）</li><li>iPhone で「読み込む」→ ファイルAppから選ぶ</li></ol>
+  <p class="muted" id="sInfo"></p>
+  <p class="muted">⚠️ iPhone では Safari とホーム画面のアプリで保存場所が別です。ホーム画面のアプリ側で使うのがおすすめ。念のため時々書き出してバックアップしてください。</p>
+  <div class="row"><button class="danger" id="sClear">すべて削除</button><button class="primary" id="sClose">閉じる</button></div>
+</div></div>
+
+<div id="toast"><span id="tMsg"></span><button id="tBtn" hidden></button></div>
+<input type="file" id="fImg" accept="image/*" multiple hidden>
+<input type="file" id="fSync" hidden>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const ICON={
+  pin:'<path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16.2 6.6 19.2l1.3-6-4.5-4 6-.6z"/>',
+  share:'<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6"/>',
+  edit:'<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
+  del:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'
+};
+const ic=(k,fill)=>`<svg class="i" viewBox="0 0 24 24"${fill?' style="fill:currentColor"':''}>${ICON[k]}</svg>`;
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const now=()=>Date.now();
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- 保存（IndexedDB） ---------- */
+let db, all=new Map();   // id -> レコード（削除済みの記録も含む）
+const urls=new Map();    // id -> サムネイルURL
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('clip-box',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('items',{keyPath:'id'});
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function store(mode,fn){return new Promise((res,rej)=>{const t=db.transaction('items',mode);const req=fn(t.objectStore('items'));
+  t.oncomplete=()=>res(req&&req.result);t.onerror=t.onabort=()=>rej(t.error)})}
+async function put(r){await store('readwrite',s=>s.put(r));all.set(r.id,r)}
+async function putMany(rs){await store('readwrite',s=>{rs.forEach(r=>s.put(r))});rs.forEach(r=>all.set(r.id,r))}
+
+/* ---------- 画像ユーティリティ ---------- */
+function loadImg(blob){return new Promise((res,rej)=>{const u=URL.createObjectURL(blob),im=new Image();
+  im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('画像を読み込めません'))};im.src=u})}
+function canvasBlob(c,type,q){return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('変換失敗')),type,q))}
+async function makeThumb(im){
+  const k=Math.min(1,480/Math.max(im.naturalWidth,im.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*k));c.height=Math.max(1,Math.round(im.naturalHeight*k));
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);return canvasBlob(c,'image/png')}
+async function toPng(blob){
+  if(blob.type==='image/png')return blob;
+  const im=await loadImg(blob),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;
+  c.getContext('2d').drawImage(im,0,0);return canvasBlob(c,'image/png')}
+const b2url=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=()=>rej(f.error);f.readAsDataURL(b)});
+async function url2b(u){return (await fetch(u)).blob()}
+
+/* ---------- 追加 ---------- */
+async function addText(text){
+  text=text.replace(/\s+$/,'');if(!text.trim())return false;
+  const dup=[...all.values()].find(r=>!r.deleted&&r.kind==='text'&&r.text===text);
+  if(dup){await put({...dup,updated:now()});draw(dup.id);toast('同じテキストがあったので先頭に移動しました');return true}
+  const r={id:uid(),kind:'text',text,note:'',pinned:false,created:now(),updated:now()};
+  await put(r);draw(r.id);toast('追加しました');return true}
+async function addImage(blob,silent){
+  try{
+    const im=await loadImg(blob),thumb=await makeThumb(im);
+    const r={id:uid(),kind:'image',blob,mime:blob.type||'image/png',w:im.naturalWidth,h:im.naturalHeight,thumb,note:'',pinned:false,created:now(),updated:now()};
+    await put(r);draw(r.id);if(!silent)toast('画像を追加しました');return true;
+  }catch(e){toast('画像を追加できませんでした');return false}}
+async function addFiles(files){let n=0;for(const f of files){if(f.type.startsWith('image/')){if(await addImage(f,true))n++}
+  else if(f.type.startsWith('text/')&&f.size<2e6){if(await addText(await f.text()))n++}}
+  if(n)toast(`${n}件追加しました`)}
+
+/* クリップボードから読む（貼り付けボタン） */
+async function pasteFromClipboard(){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.read){
+      const items=await navigator.clipboard.read();let n=0;
+      for(const it of items){
+        const img=it.types.find(t=>t.startsWith('image/'));
+        if(img){if(await addImage(await it.getType(img),true))n++;continue}
+        if(it.types.includes('text/plain')){const t=await (await it.getType('text/plain')).text();if(await addText(t))n++}
+      }
+      if(!n)toast('クリップボードが空か、対応していない形式です');return;
+    }
+    const t=await navigator.clipboard.readText();if(!await addText(t))toast('クリップボードが空です');
+  }catch(e){toast('読み取りが許可されませんでした。入力欄に貼り付けて「追加」してください');$('#addText').focus()}
+}
+
+/* ---------- コピー ---------- */
+function fallbackCopy(text){const t=document.createElement('textarea');t.value=text;t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);t.select();
+  let ok=false;try{ok=document.execCommand('copy')}catch(_){}t.remove();return ok}
+async function copyItem(r){
+  try{
+    if(r.kind==='text'){
+      try{await navigator.clipboard.writeText(r.text)}catch(e){if(!fallbackCopy(r.text))throw e}
+    }else{
+      if(!navigator.clipboard||!window.ClipboardItem)throw new Error('no');
+      // Safari ではクリック直後に write を呼ぶ必要があるので、PNG変換は Promise のまま渡す
+      await navigator.clipboard.write([new ClipboardItem({'image/png':toPng(r.blob)})]);
+    }
+    const el=document.querySelector(`[data-id="${r.id}"]`);if(el){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')}
+    toast(r.kind==='text'?'コピーしました':'画像をコピーしました');
+  }catch(e){toast(r.kind==='text'?'コピーできませんでした':'この環境では画像をコピーできません。共有ボタンを使ってください')}
+}
+async function shareItem(r){
+  try{
+    if(r.kind==='text'){
+      if(navigator.share)await navigator.share({text:r.text});else{await copyItem(r)}
+      return;
+    }
+    const ext=(r.mime.split('/')[1]||'png').replace('jpeg','jpg');
+    const f=new File([r.blob],`clip_${stamp(r.created)}.${ext}`,{type:r.mime});
+    if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f]});
+    else download(f);
+  }catch(e){if(e&&e.name!=='AbortError')toast('共有できませんでした')}
+}
+function download(file){const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+
+/* ---------- 一覧表示 ---------- */
+let filt='all';
+const pad=n=>String(n).padStart(2,'0');
+function stamp(t){const d=new Date(t);return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`}
+function when(t){const d=new Date(t),n=new Date(),s=(n-d)/1000;
+  if(s<60)return 'たった今';if(s<3600)return `${Math.floor(s/60)}分前`;
+  if(d.toDateString()===n.toDateString())return `今日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function thumbUrl(r){if(!urls.has(r.id))urls.set(r.id,URL.createObjectURL(r.thumb||r.blob));return urls.get(r.id)}
+function visible(){
+  const q=$('#q').value.trim().toLowerCase();
+  return [...all.values()].filter(r=>!r.deleted)
+    .filter(r=>filt==='all'||(filt==='pin'?r.pinned:r.kind===filt))
+    .filter(r=>!q||((r.text||'')+' '+(r.note||'')).toLowerCase().includes(q))
+    .sort((a,b)=>(b.pinned-a.pinned)||(b.updated-a.updated));
+}
+function draw(flashId){
+  // 削除されたものの画像URLを解放
+  for(const [id,u] of urls){const r=all.get(id);if(!r||r.deleted){URL.revokeObjectURL(u);urls.delete(id)}}
+  const v=visible(),live=[...all.values()].filter(r=>!r.deleted).length;
+  $('#list').innerHTML=v.map(r=>{
+    const body=r.kind==='text'?`<div class="txt">${esc(r.text)}</div>`:`<img class="img" src="${thumbUrl(r)}" alt="${esc(r.note||'画像')}" loading="lazy">`;
+    const meta=r.kind==='text'?`${when(r.updated)} · ${r.text.length}字`:`${when(r.updated)} · ${r.w}×${r.h}`;
+    return `<li class="card${r.pinned?' pinned':''}" data-id="${r.id}">
+      <button class="body" data-a="copy" title="タップでコピー">${body}${r.note?`<div class="note">📝 ${esc(r.note)}</div>`:''}</button>
+      <div class="foot"><span class="meta">${meta}</span>
+        <button data-a="pin" class="${r.pinned?'on':''}" title="ピン留め" aria-label="ピン留め">${ic('pin',r.pinned)}</button>
+        <button data-a="share" title="共有・保存" aria-label="共有">${ic('share')}</button>
+        <button data-a="edit" title="編集・メモ" aria-label="編集">${ic('edit')}</button>
+        <button data-a="del" title="削除" aria-label="削除">${ic('del')}</button></div></li>`}).join('');
+  const em=$('#empty');em.hidden=v.length>0;
+  em.textContent=live?'該当する項目がありません':'まだ何もありません。テキストや画像を貼り付けて追加しましょう。';
+  if(flashId){const el=document.querySelector(`[data-id="${flashId}"]`);if(el)el.classList.add('flash')}
+}
+$('#list').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-a]');if(!b)return;
+  const r=all.get(b.closest('.card').dataset.id);if(!r)return;
+  const a=b.dataset.a;
+  if(a==='copy')copyItem(r);
+  else if(a==='share')shareItem(r);
+  else if(a==='pin'){await put({...r,pinned:!r.pinned,updated:now()});draw()}
+  else if(a==='edit')openEdit(r);
+  else if(a==='del'){
+    const before=r;await put({id:r.id,kind:r.kind,deleted:true,updated:now()});draw();
+    toast('削除しました','元に戻す',async()=>{await put({...before,updated:now()});draw(before.id)});
+  }
+});
+
+/* ---------- 編集 ---------- */
+let editing=null;
+function openEdit(r){
+  editing=r;$('#eTitle').textContent=r.kind==='text'?'テキストを編集':'画像のメモ';
+  $('#eTextWrap').hidden=r.kind!=='text';$('#eText').value=r.text||'';$('#eNote').value=r.note||'';
+  const im=$('#eImg');im.hidden=r.kind!=='image';if(r.kind==='image')im.src=thumbUrl(r);
+  $('#edit').hidden=false;setTimeout(()=>(r.kind==='text'?$('#eText'):$('#eNote')).focus(),50);
+}
+function closeEdit(){$('#edit').hidden=true;editing=null}
+$('#eCancel').onclick=closeEdit;
+$('#eOk').onclick=async()=>{
+  if(!editing)return;const r={...editing,note:$('#eNote').value.trim(),updated:now()};
+  if(r.kind==='text'){const t=$('#eText').value.replace(/\s+$/,'');if(!t.trim()){toast('テキストが空です');return}r.text=t}
+  await put(r);closeEdit();draw(r.id);toast('保存しました');
+};
+
+/* ---------- 同期（ファイルの受け渡し） ---------- */
+async function exportSync(){
+  try{
+    toast('書き出し中…');
+    const recs=[];
+    for(const r of all.values()){
+      const o={id:r.id,kind:r.kind,updated:r.updated};
+      if(r.deleted)o.deleted=true;
+      else{Object.assign(o,{created:r.created,pinned:!!r.pinned,note:r.note||''});
+        if(r.kind==='text')o.text=r.text;else Object.assign(o,{mime:r.mime,w:r.w,h:r.h,data:await b2url(r.blob)})}
+      recs.push(o);
+    }
+    const json=JSON.stringify({app:'clip-box',version:1,exported:now(),items:recs});
+    const f=new File([json],`clipbox-sync_${stamp(now())}.json`,{type:'application/json'});
+    try{localStorage.setItem('clip-box-exported',String(now()))}catch(_){}
+    let shared=false;
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      try{await navigator.share({files:[f]});shared=true}catch(e){if(e&&e.name==='AbortError'){toast('キャンセルしました');return}}
+    }
+    if(!shared)download(f);
+    toast(shared?'書き出しました':'ダウンロードしました');syncInfo();
+  }catch(e){toast('書き出しに失敗しました')}
+}
+async function importSync(file){
+  try{
+    const d=JSON.parse(await file.text());
+    if(!d||d.app!=='clip-box'||!Array.isArray(d.items))throw new Error('形式');
+    let add=0,upd=0,del=0;const out=[];
+    for(const o of d.items){
+      if(!o||typeof o.id!=='string'||typeof o.updated!=='number')continue;
+      const cur=all.get(o.id);if(cur&&cur.updated>=o.updated)continue;
+      if(o.deleted){if(cur&&!cur.deleted)del++;out.push({id:o.id,kind:o.kind,deleted:true,updated:o.updated});continue}
+      const r={id:o.id,kind:o.kind==='image'?'image':'text',note:String(o.note||''),pinned:!!o.pinned,created:o.created||o.updated,updated:o.updated};
+      if(r.kind==='text')r.text=String(o.text||'');
+      else{if(typeof o.data!=='string'||!o.data.startsWith('data:image/'))continue;
+        r.blob=await url2b(o.data);r.mime=r.blob.type||o.mime||'image/png';
+        const im=await loadImg(r.blob);r.w=im.naturalWidth;r.h=im.naturalHeight;r.thumb=await makeThumb(im)}
+      if(!cur||cur.deleted)add++;else upd++;
+      urls.has(o.id)&&(URL.revokeObjectURL(urls.get(o.id)),urls.delete(o.id));
+      out.push(r);
+    }
+    if(out.length)await putMany(out);draw();
+    toast(add+upd+del?`同期しました（追加 ${add}・更新 ${upd}・削除 ${del}）`:'新しい変更はありませんでした');
+  }catch(e){toast('読み込めませんでした。クリップ帳の同期ファイルを選んでください')}
+}
+async function syncInfo(){
+  const live=[...all.values()].filter(r=>!r.deleted);
+  let s=`保存中: テキスト ${live.filter(r=>r.kind==='text').length}件・画像 ${live.filter(r=>r.kind==='image').length}件`;
+  try{const e=await navigator.storage.estimate();if(e&&e.usage)s+=`（約 ${(e.usage/1048576).toFixed(1)} MB）`}catch(_){}
+  let t=null;try{t=+localStorage.getItem('clip-box-exported')}catch(_){}
+  s+=t?` / 最終書き出し: ${when(t)}`:' / まだ書き出していません';
+  $('#sInfo').textContent=s;
+}
+$('#bSync').onclick=()=>{syncInfo();$('#sync').hidden=false};
+$('#sClose').onclick=()=>$('#sync').hidden=true;
+$('#sExport').onclick=exportSync;
+$('#sImport').onclick=()=>$('#fSync').click();
+$('#fSync').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f){$('#sync').hidden=true;importSync(f)}};
+$('#sClear').onclick=async()=>{
+  const live=[...all.values()].filter(r=>!r.deleted);if(!live.length){toast('何もありません');return}
+  if(!confirm(`${live.length}件をすべて削除します。よろしいですか？\n（同期すると他の端末からも消えます）`))return;
+  await putMany(live.map(r=>({id:r.id,kind:r.kind,deleted:true,updated:now()})));$('#sync').hidden=true;draw();toast('すべて削除しました');
+};
+
+/* ---------- 入力・操作 ---------- */
+let tt;
+function toast(msg,btn,fn){
+  $('#tMsg').textContent=msg;const b=$('#tBtn');b.hidden=!btn;b.textContent=btn||'';
+  b.onclick=()=>{$('#toast').classList.remove('show');fn&&fn()};
+  $('#toast').classList.add('show');clearTimeout(tt);tt=setTimeout(()=>$('#toast').classList.remove('show'),btn?5000:2200);
+}
+const ta=$('#addText');
+function grow(){ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,innerHeight*.4)+'px'}
+ta.addEventListener('input',grow);
+async function submitText(){
+  // 保存を待つ間に次の入力を始めても消えないよう、先に入力欄を空にする
+  const v=ta.value;if(!v.trim())return;ta.value='';grow();
+  if(!await addText(v)&&!ta.value){ta.value=v;grow()}
+}
+$('#addBtn').onclick=submitText;
+ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();submitText()}});
+$('#bPaste').onclick=pasteFromClipboard;
+$('#bPhoto').onclick=()=>$('#fImg').click();
+$('#fImg').onchange=e=>{const f=[...e.target.files];e.target.value='';addFiles(f)};
+$('#q').addEventListener('input',()=>draw());
+$$('#filt button').forEach(b=>b.onclick=()=>{filt=b.dataset.f;$$('#filt button').forEach(x=>x.classList.toggle('on',x===b));draw()});
+
+/* 貼り付け：入力欄では画像だけ横取り、それ以外の場所ではテキストもそのまま追加 */
+window.addEventListener('paste',e=>{
+  if(!$('#edit').hidden||e.target===$('#q'))return;
+  const cd=e.clipboardData;if(!cd)return;
+  const imgs=[...cd.items].filter(i=>i.kind==='file'&&i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);
+  if(imgs.length){e.preventDefault();addFiles(imgs);return}
+  if(e.target===ta)return;
+  const t=cd.getData('text/plain');if(t){e.preventDefault();addText(t)}
+});
+/* ドラッグ&ドロップ */
+['dragenter','dragover'].forEach(ev=>window.addEventListener(ev,e=>{e.preventDefault();$('#add').classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>window.addEventListener(ev,e=>{if(ev==='drop'||!e.relatedTarget){$('#add').classList.remove('drag')}}));
+window.addEventListener('drop',e=>{
+  e.preventDefault();const dt=e.dataTransfer;if(!dt)return;
+  const fs=[...dt.files];if(fs.length){addFiles(fs);return}
+  const t=dt.getData('text/plain');if(t)addText(t);
+});
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(!$('#edit').hidden)closeEdit();$('#sync').hidden=true;return}
+  const typing=/INPUT|TEXTAREA/.test(e.target.tagName);
+  if(!typing&&e.key==='/'){e.preventDefault();$('#q').focus()}
+  if(!$('#edit').hidden&&e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();$('#eOk').click()}
+});
+$$('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){o.hidden=true;editing=null}}));
+setInterval(()=>{if(document.visibilityState==='visible'&&$('#edit').hidden)draw()},60000); // 「◯分前」の表示更新
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  try{db=await openDB();const rs=await store('readonly',s=>s.getAll());(rs||[]).forEach(r=>all.set(r.id,r))}
+  catch(e){toast('保存領域を開けませんでした（プライベートブラウズでは使えない場合があります）')}
+  draw();
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}
+})();
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

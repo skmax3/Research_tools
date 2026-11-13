@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="クリップ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>クリップボード</title>
+<style>
+:root{--bg:#f2f2f5;--panel:#ffffff;--ink:#1c1c1e;--muted:#6e6e73;--line:#d9d9de;--accent:#0a84ff;--accent-ink:#ffffff;--chip:#f0f0f3;--danger:#ff3b30;--selbg:#e6f0ff;--ok:#1f9d55}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#16181d;--panel:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--chip:#2a2d34;--selbg:#1d3150;--ok:#3ccf7a}}
+:root[data-theme="dark"]{--bg:#16181d;--panel:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--chip:#2a2d34;--selbg:#1d3150;--ok:#3ccf7a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);-webkit-user-select:none;user-select:none}
+button,select{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+[hidden]{display:none!important}
+header{flex:none;display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:5}
+header h1{font-size:15px;margin:0 4px 0 6px;white-space:nowrap}
+#q{flex:1;min-width:60px;max-width:360px;font:16px/1.2 inherit;font-family:inherit;padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);-webkit-user-select:text;user-select:text}
+.sp{flex:1}
+.tb{display:flex;align-items:center;gap:5px;padding:8px 10px;border-radius:10px;min-height:38px;white-space:nowrap}
+.tb:hover{background:var(--chip)}
+.tb.on{background:var(--chip);color:var(--accent)}
+.tb.primary{background:var(--accent);color:var(--accent-ink)}
+@media (max-width:640px){.tb span.opt{display:none} header h1{display:none}}
+.menu{position:absolute;top:calc(100% + 4px);right:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:6px;min-width:230px;z-index:20}
+.menu button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;border-radius:8px}
+.menu button:hover{background:var(--chip)}
+.menu .note{font-size:12px;color:var(--muted);padding:6px 10px 4px;margin:0}
+.menu button.danger{color:var(--danger)}
+#sym{flex:none;display:flex;gap:4px;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+#sym::-webkit-scrollbar{display:none}
+#sym button{min-width:34px;padding:5px 8px;border-radius:8px;background:var(--chip);font-size:15px;flex:none;font-family:"Times New Roman","Hiragino Mincho ProN",serif}
+#sym button:hover{background:var(--accent);color:var(--accent-ink)}
+#main{flex:1;min-height:0;overflow-y:auto;padding:10px 10px 24px;position:relative;-webkit-overflow-scrolling:touch}
+#list{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.card{display:grid;grid-template-columns:24px 26px minmax(0,1fr) auto;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 6px 8px 2px;cursor:pointer;position:relative}
+.card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.card.cur{box-shadow:0 0 0 2px var(--accent)}
+.card.sel{background:var(--selbg);border-color:var(--accent)}
+.card.seq{box-shadow:0 0 0 3px var(--ok)}
+.card.dragging{opacity:.92;box-shadow:0 10px 30px rgba(0,0,0,.3);z-index:3;transform:scale(1.01)}
+.card.flash{animation:flash .6s}
+@keyframes flash{0%{background:color-mix(in srgb,var(--ok) 35%,var(--panel))}100%{}}
+.handle{display:flex;align-items:center;justify-content:center;height:100%;min-height:40px;color:var(--muted);cursor:grab;touch-action:none;border-radius:8px}
+.handle:hover{background:var(--chip);color:var(--ink)}
+.filtering .handle{visibility:hidden}
+.ck{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;color:transparent;padding:0;flex:none}
+.card.sel .ck{background:var(--accent);border-color:var(--accent);color:#fff}
+.ck svg{width:14px;height:14px;stroke-width:3}
+.body{display:flex;gap:10px;align-items:center;min-width:0}
+.no{flex:none;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--chip);color:var(--muted);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;align-self:flex-start;margin-top:2px}
+.card.seq .no{background:var(--ok);color:#fff}
+.content{min-width:0;flex:1}
+.txt{white-space:pre-wrap;word-break:break-all;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;font-size:13.5px}
+.meta{font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fname{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb{width:84px;height:64px;object-fit:cover;border-radius:8px;background:var(--chip);flex:none;-webkit-user-drag:element;cursor:grab}
+.ftile{width:56px;height:64px;border-radius:8px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--muted);flex:none;text-transform:uppercase;border:1px solid var(--line);overflow:hidden}
+.acts{display:flex;gap:2px}
+.acts button{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.acts button:hover{background:var(--chip);color:var(--ink)}
+@media (max-width:520px){.acts .opt{display:none}.thumb{width:64px;height:52px}}
+#empty{max-width:520px;margin:8vh auto 0;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:12px;padding:0 12px}
+#empty .big{font-size:20px;color:var(--ink);font-weight:700;margin:0}
+#empty p{margin:0}
+#empty .row{justify-content:center}
+.kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;font-size:12px;background:var(--panel);color:var(--ink);font-family:inherit}
+body.drop #main::after{content:"ここにドロップして追加";position:fixed;inset:70px 14px 70px;border:3px dashed var(--accent);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none;z-index:4}
+footer{flex:none;display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none;min-height:52px}
+footer::-webkit-scrollbar{display:none}
+footer .info{font-size:13px;color:var(--muted);white-space:nowrap;padding:0 4px}
+footer .info b{color:var(--ink)}
+footer .hint{font-size:12px;color:var(--muted);white-space:nowrap}
+@media (max-width:720px){footer .hint{display:none}}
+.btn{display:flex;align-items:center;gap:5px;padding:8px 11px;border-radius:9px;background:var(--chip);white-space:nowrap;flex:none;font-size:13px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.ok{background:var(--ok);color:#fff;font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.4;cursor:default}
+select.btn{appearance:none;-webkit-appearance:none;padding-right:11px}
+.seqtxt{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw;color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:calc(68px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(28,28,30,.94);color:#fff;padding:9px 14px;border-radius:12px;font-size:13px;z-index:40;display:flex;gap:12px;align-items:center;max-width:calc(100% - 24px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+#toast button{color:#6cb6ff;font-weight:700;white-space:nowrap}
+#dlg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:max(40px,env(safe-area-inset-top)) 10px 10px;z-index:30;overflow-y:auto}
+.sheet{background:var(--panel);border-radius:16px;padding:14px;width:min(640px,100%);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.dhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dhead b{font-size:15px}
+.dhead .muted{color:var(--muted);font-size:12px;flex:1}
+.dhead button{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center}
+.dhead button:hover{background:var(--chip)}
+textarea.ed,input.ed{width:100%;font:15px/1.5 inherit;font-family:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);-webkit-user-select:text;user-select:text}
+textarea.ed{min-height:220px;resize:vertical}
+textarea.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tools .lbl{font-size:12px;color:var(--muted);align-self:center;margin-right:2px}
+.tools button{padding:6px 10px;border-radius:8px;background:var(--chip);font-size:13px}
+.tools button:hover{background:var(--accent);color:var(--accent-ink)}
+.preview{display:flex;justify-content:center;background:var(--chip);border-radius:10px;padding:8px;margin-bottom:8px}
+.preview img{max-width:100%;max-height:55vh;object-fit:contain;border-radius:6px}
+.kv{font-size:12.5px;color:var(--muted);margin:6px 2px 0;line-height:1.7}
+.help{font-size:13.5px;line-height:1.7}
+.help h4{margin:12px 0 4px;font-size:14px}
+.help ul{margin:0;padding-left:20px}
+#catcher{position:fixed;left:-1000px;top:0;width:10px;height:10px;opacity:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>クリップボード</h1>
+  <input id="q" type="search" placeholder="検索（/）" autocomplete="off" enterkeyhint="search">
+  <div class="sp"></div>
+  <button class="tb primary" id="bAdd" title="追加"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="opt">追加</span></button>
+  <button class="tb" id="bSym" title="記号パレット"><span style="font:600 16px/1 'Times New Roman',serif">Ω</span><span class="opt">記号</span></button>
+  <button class="tb" id="bMore" title="その他"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+  <div class="menu" id="mAdd" hidden>
+    <button data-m="clip"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg>クリップボードから貼り付け</button>
+    <button data-m="file"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>ファイル・写真を選ぶ</button>
+    <button data-m="text"><svg class="i" viewBox="0 0 24 24"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>テキストを入力</button>
+    <p class="note">Mac では <span class="kbd">⌘V</span> やドラッグ＆ドロップでも追加できます</p>
+  </div>
+  <div class="menu" id="mMore" hidden>
+    <button data-m="help"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01"/></svg>使い方・ショートカット</button>
+    <button data-m="selall"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>すべて選択</button>
+    <button data-m="clear" class="danger"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>すべて削除…</button>
+    <p class="note" id="usage">保存場所: このブラウザの中だけ</p>
+  </div>
+</header>
+<div id="sym" hidden></div>
+<div id="main">
+  <div id="list"></div>
+  <div id="empty" hidden>
+    <p class="big">ここにクリップを集めます</p>
+    <p>Mac: <span class="kbd">⌘C</span> したあと、この画面で <span class="kbd">⌘V</span>。<br>画像・PDF・大きなファイルはドラッグ＆ドロップ。</p>
+    <div class="row">
+      <button class="btn primary" data-m="clip">クリップボードから貼り付け</button>
+      <button class="btn" data-m="file">ファイル・写真を選ぶ</button>
+      <button class="btn" data-m="text">テキストを入力</button>
+    </div>
+    <p style="font-size:12px">データはこの端末のブラウザ内にだけ保存され、外部には送信されません。</p>
+  </div>
+</div>
+<footer id="bar"></footer>
+<input type="file" id="file" multiple hidden>
+<textarea id="catcher" tabindex="-1" aria-hidden="true"></textarea>
+<div id="toast" hidden><span id="tMsg"></span><button id="tAct" hidden></button></div>
+<div id="dlg" hidden></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const listEl=$('#list'), mainEl=$('#main'), barEl=$('#bar'), catcher=$('#catcher');
+const I=p=>`<svg class="i" viewBox="0 0 24 24">${p}</svg>`;
+const IC={
+  grip:I('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>'),
+  check:I('<path d="M5 12l5 5 9-10"/>'),
+  copy:I('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+  save:I('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
+  more:I('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
+  trash:I('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  x:I('<path d="M6 6l12 12M18 6L6 18"/>'),
+  play:I('<path d="M7 5l11 7-11 7z"/>'),
+  prev:I('<path d="M15 6l-6 6 6 6"/>'),
+  next:I('<path d="M9 6l6 6-6 6"/>'),
+  zip:I('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M10 6h2M10 9h2M10 12h2v3h-2z"/>'),
+  join:I('<path d="M4 6h16M4 12h16M4 18h10"/>'),
+};
+const SYMS='φ ± ° μ Ω × ÷ ≈ ≒ ≠ ≤ ≥ ∞ Δ θ ω α β γ λ ρ σ τ η ν π ε ² ³ ⁻¹ √ ∂ ∫ Σ → ⇔ ℃ ‰ · 〜'.split(' ');
+const SEPS=[['\n','改行'],['\n\n','空行'],['\t','タブ'],[', ','カンマ'],[' ','スペース'],['','なし']];
+
+/* ---------- 状態 ---------- */
+let db=null, items=new Map(), order=[], sel=new Set(), cur=null, seq=null, anchor=null, dragOut=false;
+const urls=new Map();
+const ls={get(k,d){try{const v=localStorage.getItem('clip.'+k);return v==null?d:JSON.parse(v)}catch(_){return d}},set(k,v){try{localStorage.setItem('clip.'+k,JSON.stringify(v))}catch(_){}}};
+let sepI=ls.get('sep',0);
+
+/* ---------- 保存（IndexedDB） ---------- */
+const rq=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const st=(name,mode='readonly')=>db.transaction(name,mode).objectStore(name);
+async function openDB(){
+  db=await new Promise((res,rej)=>{const r=indexedDB.open('clipboard',1);
+    r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('items'))d.createObjectStore('items',{keyPath:'id'});if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv')};
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+}
+async function loadAll(){
+  if(!db)return;
+  const all=await rq(st('items').getAll()), o=await rq(st('kv').get('order'))||[];
+  const m=new Map(all.map(it=>[it.id,it]));
+  for(const id of urls.keys())if(!m.has(id))dropUrl(id);
+  items=m;order=o.filter(id=>m.has(id));
+  for(const id of m.keys())if(!order.includes(id))order.push(id);
+  for(const id of [...sel])if(!m.has(id))sel.delete(id);
+  if(cur&&!m.has(cur))cur=null;
+}
+async function putItem(it){if(db)await rq(st('items','readwrite').put(it))}
+async function delItem(id){if(db)await rq(st('items','readwrite').delete(id))}
+async function saveOrder(){if(db)try{await rq(st('kv','readwrite').put(order,'order'))}catch(_){}}
+const bc='BroadcastChannel' in window?new BroadcastChannel('clipboard-sync'):null;
+const sync=()=>{try{bc&&bc.postMessage(1)}catch(_){}};
+if(bc)bc.onmessage=async()=>{await loadAll();render()};
+
+/* ---------- 小物 ---------- */
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const z2=n=>String(n).padStart(2,'0');
+const stamp=(d=new Date())=>`${d.getFullYear()}${z2(d.getMonth()+1)}${z2(d.getDate())}-${z2(d.getHours())}${z2(d.getMinutes())}${z2(d.getSeconds())}`;
+function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(b<10240?1:0)+' KB';if(b<1073741824)return (b/1048576).toFixed(b<10485760?1:0)+' MB';return (b/1073741824).toFixed(2)+' GB'}
+function ago(t){const s=(Date.now()-t)/1000;if(s<60)return 'たった今';if(s<3600)return Math.floor(s/60)+'分前';if(s<86400)return Math.floor(s/3600)+'時間前';const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${z2(d.getHours())}:${z2(d.getMinutes())}`}
+function urlOf(it){if(!it.blob)return '';let u=urls.get(it.id);if(!u){u=URL.createObjectURL(it.blob);urls.set(it.id,u)}return u}
+function dropUrl(id){const u=urls.get(id);if(u){URL.revokeObjectURL(u);urls.delete(id)}}
+const extOf=n=>{const m=/\.([A-Za-z0-9]{1,6})$/.exec(n||'');return m?m[1]:''};
+const EXT={'image/png':'png','image/jpeg':'jpg','image/gif':'gif','image/webp':'webp','image/heic':'heic','image/svg+xml':'svg','image/tiff':'tiff','application/pdf':'pdf'};
+let toastT=null;
+function toast(msg,act){
+  $('#tMsg').textContent=msg;const b=$('#tAct');
+  if(act){b.hidden=false;b.textContent=act.label;b.onclick=()=>{$('#toast').hidden=true;act.fn()}}else b.hidden=true;
+  $('#toast').hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>$('#toast').hidden=true,act?6000:2200);
+}
+
+/* ---------- 追加 ---------- */
+async function recFromBlob(blob,name){
+  const mime=blob.type||'application/octet-stream';
+  const rec={kind:'file',blob,mime,size:blob.size,name:name||''};
+  if(mime.startsWith('image/')){
+    const u=URL.createObjectURL(blob);
+    try{const img=new Image();img.src=u;await img.decode();rec.kind='image';rec.w=img.naturalWidth;rec.h=img.naturalHeight}catch(_){}
+    URL.revokeObjectURL(u);
+  }
+  if(!rec.name||/^image\.(png|jpe?g|gif|tiff?)$/i.test(rec.name))rec.name=(rec.kind==='image'?'画像_':'ファイル_')+stamp()+'.'+(EXT[mime]||extOf(rec.name)||'bin');
+  return rec;
+}
+function recFromText(text,html){
+  const rec={kind:'text',text,size:new Blob([text]).size};
+  if(html&&html.length<2e6)rec.html=html;
+  return rec;
+}
+/* 画像とテキストが同時に来たときにどちらとして扱うか（Excel はセルの画像も付けてくる） */
+function preferText(text,html,files){
+  const t=(text||'').trim();if(!t)return false;
+  if(files.some(f=>!(f.type||'').startsWith('image/')))return false;
+  if(/<table/i.test(html||'')||t.includes('\t'))return true;
+  const nameLike=!t.includes('\n')&&t.length<260&&(/\.[A-Za-z0-9]{2,5}$/.test(t)||files.some(f=>f.name&&t.endsWith(f.name)));
+  return !nameLike;
+}
+async function isReadable(f){try{await f.slice(0,1).arrayBuffer();return true}catch(_){return false}}
+async function addFromDT(dt){
+  const files=[...(dt.files||[])];
+  const text=dt.getData('text/plain')||'', html=dt.getData('text/html')||'';
+  const recs=[];
+  if(files.length&&!preferText(text,html,files)){
+    let skipped=0;
+    for(const f of files){if(!(await isReadable(f))){skipped++;continue}recs.push(await recFromBlob(f,f.name))}
+    if(skipped)toast(`${skipped}件（フォルダなど）は追加できませんでした`);
+  }else if(text){recs.push(recFromText(text,html))}
+  else if(dt.getData('text/uri-list')){recs.push(recFromText(dt.getData('text/uri-list')))}
+  if(recs.length)await addRecs(recs);
+}
+async function readClipboard(){
+  try{
+    if(!navigator.clipboard||!navigator.clipboard.read)throw new Error('noread');
+    const cis=await navigator.clipboard.read();const recs=[];
+    for(const ci of cis){
+      const imgT=ci.types.find(t=>t.startsWith('image/'));
+      const text=ci.types.includes('text/plain')?await (await ci.getType('text/plain')).text():'';
+      const html=ci.types.includes('text/html')?await (await ci.getType('text/html')).text():'';
+      if(imgT&&!preferText(text,html,[{type:imgT}])){const b=await ci.getType(imgT);recs.push(await recFromBlob(new Blob([b],{type:imgT}),''))}
+      else if(text)recs.push(recFromText(text,html));
+    }
+    if(recs.length)await addRecs(recs);else toast('クリップボードが空か、読み取れない形式です');
+  }catch(e){
+    try{const t=await navigator.clipboard.readText();if(t){await addRecs([recFromText(t)]);return}}catch(_){}
+    if(e&&e.name==='NotAllowedError')toast('読み取りが許可されませんでした');
+    else toast('読み取れませんでした。Mac では ⌘V で貼り付けてください');
+  }
+}
+async function addRecs(recs){
+  const newIds=[];let moved=0,failed=0,big=0;
+  for(const r of recs){
+    if(r.kind==='text'){
+      const dup=order.find(id=>{const x=items.get(id);return x.kind==='text'&&x.text===r.text});
+      if(dup){order=order.filter(id=>id!==dup);newIds.push(dup);moved++;continue}
+    }
+    r.id=uid();r.t=Date.now();
+    try{await putItem(r)}catch(e){failed++;continue}
+    items.set(r.id,r);newIds.push(r.id);if(r.size>500*1048576)big++;
+  }
+  order=[...newIds,...order.filter(id=>!newIds.includes(id))];
+  if(newIds.length)cur=newIds[0];
+  await saveOrder();render();sync();
+  if(failed)toast(`${failed}件を保存できませんでした（保存領域が足りない可能性）`);
+  else if(big)toast('大きなファイルを追加しました。ブラウザの保存領域を使うので、不要になったら削除してください');
+  else toast(moved&&moved===newIds.length?'同じテキストを先頭に移動しました':`${newIds.length}件追加しました`);
+  if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+  mainEl.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- コピー・保存 ---------- */
+async function writeText(t){
+  try{await navigator.clipboard.writeText(t)}
+  catch(e){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0;left:-1000px';document.body.append(ta);ta.select();
+    const ok=document.execCommand('copy');ta.remove();if(!ok)throw e}
+}
+async function toPng(blob){
+  const u=URL.createObjectURL(blob);
+  try{const img=new Image();img.src=u;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;
+    c.getContext('2d').drawImage(img,0,0);return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('png')),'image/png'))}
+  finally{URL.revokeObjectURL(u)}
+}
+/* text は省略可（詳細画面で編集中の文字を渡す） */
+async function copyItem(it,{plain=false,text=null,quiet=false}={}){
+  try{
+    if(it.kind==='text'){
+      const t=text==null?it.text:text;
+      if(it.html&&!plain&&text==null&&window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+        await navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([t],{type:'text/plain'}),'text/html':new Blob([it.html],{type:'text/html'})})]);
+      }else await writeText(t);
+    }else if(it.kind==='image'){
+      if(!window.ClipboardItem||!navigator.clipboard||!navigator.clipboard.write)throw new Error('noimg');
+      await navigator.clipboard.write([new ClipboardItem({'image/png':it.mime==='image/png'?it.blob:toPng(it.blob)})]);
+    }else{toast('ファイルはコピーできません。カードをドラッグするか「保存」で取り出してください');return false}
+    flash(it.id);if(!quiet)toast(it.kind==='image'?'画像をコピーしました':'コピーしました');return true;
+  }catch(e){
+    toast(it.kind==='image'?'この環境では画像をコピーできません。ドラッグか「保存」を使ってください':'コピーできませんでした');return false;
+  }
+}
+function flash(id){const el=listEl.querySelector(`[data-id="${id}"]`);if(el){el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash')}}
+const safeName=s=>s.replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').trim();
+function textName(it){const h=safeName(it.text.trim().split('\n')[0].slice(0,24));return (h||'テキスト')+'.txt'}
+function fileOf(it){return it.kind==='text'?{blob:new Blob([it.text],{type:'text/plain;charset=utf-8'}),name:textName(it)}:{blob:it.blob,name:it.name}}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000)}
+function saveItem(it){const f=fileOf(it);download(f.blob,f.name)}
+async function shareItem(it){const f=fileOf(it);try{await navigator.share({files:[new File([f.blob],f.name,{type:f.blob.type})]})}catch(e){if(e&&e.name!=='AbortError')toast('共有できませんでした')}}
+function canShareFiles(){try{return !!(navigator.canShare&&navigator.canShare({files:[new File(['x'],'a.txt',{type:'text/plain'})]}))}catch(_){return false}}
+
+/* ---------- ZIP（無圧縮・番号付き） ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u8,c=0xFFFFFFFF){for(let i=0;i<u8.length;i++)c=CRC[(c^u8[i])&255]^(c>>>8);return c}
+async function makeZip(files){
+  const enc=new TextEncoder(),parts=[],cen=[];let off=0;
+  const d=new Date(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  for(const f of files){
+    const nm=enc.encode(f.name),size=f.blob.size;let c=0xFFFFFFFF;
+    for(let p=0;p<size;p+=8388608)c=crc32(new Uint8Array(await f.blob.slice(p,p+8388608).arrayBuffer()),c);
+    c=(c^0xFFFFFFFF)>>>0;
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);h.setUint16(10,tm,true);h.setUint16(12,dt,true);
+    h.setUint32(14,c,true);h.setUint32(18,size,true);h.setUint32(22,size,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);
+    ch.setUint32(16,c,true);ch.setUint32(20,size,true);ch.setUint32(24,size,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+    parts.push(h.buffer,nm,f.blob);cen.push(ch.buffer,nm);off+=30+nm.length+size;
+  }
+  const cenSize=cen.reduce((s,x)=>s+x.byteLength,0);
+  const e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cenSize,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,e.buffer],{type:'application/zip'});
+}
+async function saveNumbered(ids){
+  if(ids.length===1){saveItem(items.get(ids[0]));return}
+  const w=Math.max(2,String(ids.length).length),used=new Set();
+  const files=ids.map((id,i)=>{const f=fileOf(items.get(id));let n=String(i+1).padStart(w,'0')+'_'+safeName(f.name);
+    while(used.has(n))n=n.replace(/(\.[^.]*)?$/,'_'+uid().slice(-3)+'$1');used.add(n);return {name:n,blob:f.blob}});
+  const total=files.reduce((s,f)=>s+f.blob.size,0);
+  if(total>=4294967295-1e6||files.length>65000){toast('合計4GB以上はZIPにできません。分けて保存してください');return}
+  toast(`ZIPを作成中…（${fmtSize(total)}）`);
+  try{download(await makeZip(files),`clipboard_${stamp()}.zip`);toast(`${files.length}件を番号付きZIPで保存しました`)}
+  catch(e){toast('ZIPを作れませんでした（メモリ不足の可能性）')}
+}
+
+/* ---------- 削除 ---------- */
+async function removeItems(ids){
+  ids=ids.filter(id=>items.has(id));if(!ids.length)return;
+  const recs=ids.map(id=>({it:items.get(id),pos:order.indexOf(id)}));
+  for(const id of ids){items.delete(id);sel.delete(id);dropUrl(id);if(cur===id)cur=null;try{await delItem(id)}catch(_){}}
+  order=order.filter(id=>items.has(id));
+  if(seq&&seq.ids.some(id=>!items.has(id)))seq=null;
+  await saveOrder();render();sync();
+  toast(`${ids.length}件削除しました`,{label:'元に戻す',fn:async()=>{
+    recs.sort((a,b)=>a.pos-b.pos);
+    for(const r of recs){items.set(r.it.id,r.it);order.splice(Math.min(r.pos,order.length),0,r.it.id);try{await putItem(r.it)}catch(_){}}
+    await saveOrder();render();sync();toast('元に戻しました')}});
+}
+
+/* ---------- テキスト変換（研究向け） ---------- */
+const isCJK=c=>/[\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(c);
+const TX={
+  /* PDF からのコピーで入る行内の改行を削除。空行と「。」等の文末の改行は残す */
+  joinLines(s){
+    s=s.replace(/\r\n?/g,'\n').replace(/[ \t]+\n/g,'\n');
+    return s.split(/\n{2,}/).map(p=>p.replace(/([a-z])-\n(?=[a-z])/g,'$1')
+      .replace(/([^\n])\n(?=([^\n]))/g,(m,a,b)=>/[。．！？!?:：]/.test(a)?a+'\n':a+(isCJK(a)||isCJK(b)?'':' '))).join('\n\n');
+  },
+  /* 全角英数・記号 → 半角（「」、。などの日本語の約物はそのまま） */
+  toHalf:s=>s.replace(/[！-～]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/\u3000/g,' '),
+  /* 半角カナ → 全角カナ */
+  kanaFull:s=>s.replace(/[\uff61-\uff9f]+/g,m=>m.normalize('NFKC')),
+  trimSpaces:s=>s.replace(/\r\n?/g,'\n').split('\n').map(l=>l.replace(/[ \t\u3000]+$/,'')).join('\n').replace(/\n{3,}/g,'\n\n').trim(),
+};
+/* Excel / Numbers のコピー（タブ区切り、"..." で改行を含むセル）を表として読む。タブが無ければ CSV とみなす */
+function parseTable(s){
+  s=s.replace(/\r\n?/g,'\n').replace(/\n+$/,'');
+  const d=s.includes('\t')?'\t':',';const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<s.length;i++){const c=s[i];
+    if(q){if(c==='"'){if(s[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c}
+    else if(c==='"'&&cell==='')q=true;
+    else if(c===d){row.push(cell);cell=''}
+    else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell=''}
+    else cell+=c}
+  row.push(cell);rows.push(row);
+  const n=Math.max(...rows.map(r=>r.length));rows.forEach(r=>{while(r.length<n)r.push('')});
+  return rows;
+}
+const isNum=v=>/^\s*[-+−]?(\d{1,3}(,\d{3})+|\d*)(\.\d+)?([eE][-+]?\d+)?\s*%?\s*$/.test(v)&&/\d/.test(v);
+const numCols=rows=>rows[0].map((_,j)=>rows.length>1&&rows.slice(1).every(r=>!r[j].trim()||isNum(r[j]))&&rows.slice(1).some(r=>r[j].trim()));
+TX.toMarkdown=s=>{const r=parseTable(s),nc=numCols(r),e=v=>v.replace(/\|/g,'\\|').replace(/\n/g,'<br>').trim();
+  const line=a=>'| '+a.map(e).join(' | ')+' |';
+  return [line(r[0]),'|'+nc.map(n=>n?' ---: ':' --- ').join('|')+'|',...r.slice(1).map(line)].join('\n')};
+TX.toLatex=s=>{const r=parseTable(s),nc=numCols(r);
+  const e=v=>v.trim().replace(/\\/g,'\u0000').replace(/([&%$#_{}])/g,'\\$1').replace(/~/g,'\\textasciitilde{}').replace(/\^/g,'\\textasciicircum{}').replace(/\u0000/g,'\\textbackslash{}').replace(/\n/g,' ');
+  const line=a=>'  '+a.map(e).join(' & ')+' \\\\';
+  return ['\\begin{tabular}{'+nc.map(n=>n?'r':'l').join('')+'}','  \\hline',line(r[0]),'  \\hline',...r.slice(1).map(line),'  \\hline','\\end{tabular}'].join('\n')};
+TX.toCSV=s=>parseTable(s).map(r=>r.map(v=>/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v).join(',')).join('\n');
+TX.toTSV=s=>parseTable(s).map(r=>r.map(v=>v.replace(/[\t\n]/g,' ')).join('\t')).join('\n');
+
+/* ---------- 表示 ---------- */
+function matches(it,q){if(!q)return true;q=q.toLowerCase();return (it.text||'').toLowerCase().includes(q)||(it.name||'').toLowerCase().includes(q)}
+function visibleIds(){const q=$('#q').value.trim();return order.filter(id=>matches(items.get(id),q))}
+function metaOf(it){
+  const t=ago(it.t);
+  if(it.kind==='text'){const lines=it.text.split('\n').length;return `テキスト・${it.text.length.toLocaleString()}文字${lines>1?'・'+lines+'行':''}${it.html?'・書式あり':''}・${t}`}
+  if(it.kind==='image')return `${it.w}×${it.h}・${fmtSize(it.size)}・${t}`;
+  return `${(extOf(it.name)||'file').toUpperCase()}・${fmtSize(it.size)}・${t}`;
+}
+function cardEl(it,n){
+  const el=document.createElement('div');el.className='card';el.dataset.id=it.id;
+  if(sel.has(it.id))el.classList.add('sel');if(cur===it.id)el.classList.add('cur');
+  if(seq&&seq.ids[seq.i]===it.id)el.classList.add('seq');
+  if(it.kind!=='image')el.draggable=true;
+  el.innerHTML=`<div class="handle" title="ドラッグで並べ替え">${IC.grip}</div><button class="ck" data-a="sel" title="選択">${IC.check}</button>
+    <div class="body"><span class="no"></span><div class="content"></div></div>
+    <div class="acts">${it.kind==='file'?'':`<button data-a="copy" title="コピー">${IC.copy}</button>`}<button data-a="save" class="${it.kind==='file'?'':'opt'}" title="保存">${IC.save}</button><button data-a="open" title="詳細・変換">${IC.more}</button><button data-a="del" class="opt" title="削除">${IC.trash}</button></div>`;
+  el.querySelector('.no').textContent=n;
+  const c=el.querySelector('.content'),body=el.querySelector('.body');
+  const meta=document.createElement('div');meta.className='meta';meta.textContent=metaOf(it);
+  if(it.kind==='text'){const t=document.createElement('div');t.className='txt';t.textContent=it.text.length>600?it.text.slice(0,600)+'…':it.text;c.append(t,meta)}
+  else{
+    let pv;
+    if(it.kind==='image'){pv=document.createElement('img');pv.className='thumb';pv.loading='lazy';pv.decoding='async';pv.alt='';pv.src=urlOf(it);pv.title='ドラッグして他のアプリへ'}
+    else{pv=document.createElement('div');pv.className='ftile';pv.textContent=extOf(it.name)||'file'}
+    body.insertBefore(pv,c);
+    const nm=document.createElement('div');nm.className='fname';nm.textContent=it.name;c.append(nm,meta);
+  }
+  return el;
+}
+function render(){
+  const q=$('#q').value.trim(),idx=new Map(order.map((id,i)=>[id,i+1]));
+  const vis=order.filter(id=>matches(items.get(id),q));
+  listEl.classList.toggle('filtering',!!q);
+  const frag=document.createDocumentFragment();
+  for(const id of vis)frag.append(cardEl(items.get(id),idx.get(id)));
+  listEl.replaceChildren(frag);
+  $('#empty').hidden=order.length>0;
+  if(order.length&&!vis.length){const p=document.createElement('p');p.style.cssText='text-align:center;color:var(--muted)';p.textContent='一致する項目はありません';listEl.append(p)}
+  renderBar();
+}
+function renderBar(){
+  const B=(a,label,icon='',cls='',title='')=>`<button class="btn ${cls}" data-b="${a}" title="${title}">${icon}${label}</button>`;
+  if(seq){
+    const it=items.get(seq.ids[seq.i]);
+    const pv=it?(it.kind==='text'?it.text.replace(/\s+/g,' ').slice(0,60):it.name):'';
+    barEl.innerHTML=`<span class="info">順番コピー <b>${seq.i+1}</b> / ${seq.ids.length}</span><span class="seqtxt"></span><span class="sp"></span>
+      ${B('seqPrev','',IC.prev,'','前へ（←）')}${B('seqNext',seq.i+1<seq.ids.length?'次をコピー':'最後です',IC.next,'ok','次をコピー（Space / →）')}${B('seqEnd','終了',IC.x,'','終了（Esc）')}`;
+    barEl.querySelector('.seqtxt').textContent='コピー済み: '+pv;
+    barEl.querySelector('[data-b=seqNext]').disabled=seq.i+1>=seq.ids.length;
+    barEl.querySelector('[data-b=seqPrev]').disabled=seq.i<=0;
+    return;
+  }
+  if(sel.size){
+    barEl.innerHTML=`<span class="info"><b>${sel.size}</b>件選択</span>
+      ${B('join','まとめてコピー',IC.join,'primary','テキストを区切り文字でつないでコピー（⌘C）')}<select class="btn" id="sepSel" title="つなぐときの区切り">${SEPS.map((s,i)=>`<option value="${i}"${i===sepI?' selected':''}>区切り: ${s[1]}</option>`).join('')}</select>
+      ${B('seqSel','順番にコピー',IC.play)}${B('zipSel','番号付きで保存',IC.zip)}${B('delSel','削除',IC.trash,'danger')}${B('clearSel','解除',IC.x)}`;
+    barEl.querySelector('#sepSel').onchange=e=>{sepI=+e.target.value;ls.set('sep',sepI)};
+    return;
+  }
+  const total=order.reduce((s,id)=>s+(items.get(id).size||0),0);
+  barEl.innerHTML=`<span class="info"><b>${order.length}</b>件・${fmtSize(total)}</span><span class="sp"></span>
+    <span class="hint">クリック=コピー　⌘クリック=選択　<span class="kbd">↑↓</span><span class="kbd">Enter</span>　<span class="kbd">⌥↑↓</span>=移動</span>
+    ${order.length?B('seqAll','上から順番にコピー',IC.play,'','1番から順にコピーしていく'):''}`;
+}
+function selectedInOrder(){return order.filter(id=>sel.has(id))}
+
+/* ---------- 順番コピー ---------- */
+function seqStart(ids){
+  const all=ids.length;ids=ids.filter(id=>items.get(id).kind!=='file');
+  if(!ids.length){toast('コピーできる項目（テキスト・画像）がありません');return}
+  seq={ids,i:0};copyItem(items.get(ids[0]),{quiet:true});
+  toast(all>ids.length?`ファイル${all-ids.length}件を除いて開始。1番をコピーしました`:'1番をコピーしました。貼り付けたら「次をコピー」');
+  render();
+}
+function seqGo(d){
+  if(!seq)return;const ni=seq.i+d;
+  if(ni<0||ni>=seq.ids.length){if(d>0)toast('最後までコピーしました。Esc で終了');return}
+  seq.i=ni;copyItem(items.get(seq.ids[ni]),{quiet:true});render();
+  const el=listEl.querySelector('.card.seq');if(el)el.scrollIntoView({block:'nearest'});
+}
+function seqEnd(){seq=null;render()}
+function joinCopy(){
+  const ids=selectedInOrder(),texts=ids.map(id=>items.get(id)).filter(it=>it.kind==='text').map(it=>it.text);
+  if(!texts.length){toast('選択にテキストがありません');return}
+  writeText(texts.join(SEPS[sepI][0])).then(()=>toast(`${texts.length}件をつないでコピーしました`+(texts.length<ids.length?'（画像・ファイルは除外）':'')),()=>toast('コピーできませんでした'));
+}
+
+/* ---------- 詳細・変換ダイアログ ---------- */
+function openDlg(html){const d=$('#dlg');d.innerHTML=`<div class="sheet">${html}</div>`;d.hidden=false;closeMenus();return d.firstChild}
+function closeDlg(){const d=$('#dlg');if(d.hidden)return;if(d.onclose)d.onclose();d.onclose=null;d.hidden=true;d.innerHTML=''}
+$('#dlg').addEventListener('pointerdown',e=>{if(e.target.id==='dlg')closeDlg()});
+const head=(title,sub='')=>`<div class="dhead"><b>${title}</b><span class="muted">${sub}</span><button data-d="close" title="閉じる（Esc）">${IC.x}</button></div>`;
+function openItem(id){
+  const it=items.get(id);if(!it)return;cur=id;
+  if(it.kind==='text')return openText(it);
+  const sh=openDlg(head(it.kind==='image'?'画像':'ファイル')+
+    (it.kind==='image'?`<div class="preview"><img alt=""></div>`:'')+
+    `<input class="ed" id="dName" value="" aria-label="ファイル名"><p class="kv" id="dKv"></p>
+    <div class="row">${it.kind==='image'?`<button class="btn primary" data-d="copy">${IC.copy}コピー</button>`:''}
+    <button class="btn" data-d="save">${IC.save}保存</button>${canShareFiles()?`<button class="btn" data-d="share">共有…</button>`:''}
+    <span class="sp"></span><button class="btn danger" data-d="del">${IC.trash}削除</button></div>`);
+  if(it.kind==='image')sh.querySelector('img').src=urlOf(it);
+  sh.querySelector('#dName').value=it.name;
+  sh.querySelector('#dKv').textContent=`${it.mime}・${fmtSize(it.size)}${it.w?`・${it.w}×${it.h} px`:''}・追加 ${new Date(it.t).toLocaleString('ja-JP')}`;
+  const commitName=async()=>{const v=safeName(sh.querySelector('#dName').value);if(v&&v!==it.name){it.name=v;await putItem(it);render();sync()}};
+  $('#dlg').onclose=commitName;
+  sh.onclick=async e=>{const a=e.target.closest('[data-d]');if(!a)return;const k=a.dataset.d;
+    if(k==='close')closeDlg();
+    else if(k==='copy')copyItem(it);
+    else if(k==='save'){await commitName();saveItem(it)}
+    else if(k==='share'){await commitName();shareItem(it)}
+    else if(k==='del'){closeDlg();removeItems([it.id])}};
+}
+function openText(it){
+  const sh=openDlg(head('テキスト','<span id="dStat"></span>')+
+    `<textarea class="ed" id="dText" spellcheck="false"></textarea>
+    <div class="tools"><span class="lbl">整える</span><button data-t="joinLines" title="PDFなどからコピーした文の、行の途中の改行を削除">改行を整理</button><button data-t="toHalf">英数を半角に</button><button data-t="kanaFull">半角カナを全角に</button><button data-t="trimSpaces">余分な空白・空行</button></div>
+    <div class="tools"><span class="lbl">表（Excelのコピー）→</span><button data-t="toMarkdown">Markdown</button><button data-t="toLatex">LaTeX</button><button data-t="toCSV">CSV</button><button data-t="toTSV">Excel用（タブ区切り）</button></div>
+    <div class="row"><button class="btn primary" data-d="copy">${IC.copy}コピー</button>${it.html?`<button class="btn" data-d="plain">書式なしでコピー</button>`:''}
+    <button class="btn" data-d="saveOver">上書き保存</button><button class="btn" data-d="saveNew">新しい項目として追加</button><button class="btn" data-d="undo" hidden>変換を元に戻す</button>
+    <span class="sp"></span><button class="btn danger" data-d="del">${IC.trash}</button></div>`);
+  const ta=sh.querySelector('#dText'),stat=sh.querySelector('#dStat'),undoB=sh.querySelector('[data-d=undo]');
+  ta.value=it.text;const hist=[];
+  const upd=()=>{const v=ta.value;stat.textContent=`${v.length.toLocaleString()}文字・${v.split('\n').length}行`+(v!==it.text?'・未保存':'');undoB.hidden=!hist.length;
+    ta.classList.toggle('mono',/\t|^\\begin|^\|/m.test(v))};
+  ta.oninput=upd;upd();
+  sh.onclick=async e=>{
+    const t=e.target.closest('[data-t]');
+    if(t){const f=TX[t.dataset.t];const before=ta.value;let after;try{after=f(before)}catch(_){toast('変換できませんでした');return}
+      if(after===before){toast('変化はありませんでした');return}
+      hist.push(before);ta.value=after;upd();
+      copyItem(it,{text:after,quiet:true}).then(ok=>ok&&toast('変換してコピーしました'));return}
+    const a=e.target.closest('[data-d]');if(!a)return;const k=a.dataset.d;
+    if(k==='close')closeDlg();
+    else if(k==='copy')copyItem(it,ta.value===it.text?{}:{text:ta.value});
+    else if(k==='plain')copyItem(it,{plain:true});
+    else if(k==='undo'){if(hist.length){ta.value=hist.pop();upd()}}
+    else if(k==='saveOver'){if(ta.value===it.text){toast('変更はありません');return}it.text=ta.value;it.size=new Blob([it.text]).size;delete it.html;await putItem(it);render();sync();upd();toast('上書き保存しました')}
+    else if(k==='saveNew'){closeDlg();await addRecs([recFromText(ta.value)])}
+    else if(k==='del'){closeDlg();removeItems([it.id])}
+  };
+}
+function openNewText(){
+  const sh=openDlg(head('テキストを入力')+`<textarea class="ed" id="nText" placeholder="ここに入力・貼り付け"></textarea><div class="row"><span class="sp"></span><button class="btn primary" data-d="add">追加</button></div>`);
+  const ta=sh.querySelector('#nText');setTimeout(()=>ta.focus(),50);
+  const add=async()=>{if(!ta.value){closeDlg();return}const v=ta.value;closeDlg();await addRecs([recFromText(v)])};
+  ta.onkeydown=e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();add()}};
+  sh.onclick=e=>{const a=e.target.closest('[data-d]');if(!a)return;if(a.dataset.d==='close')closeDlg();else add()};
+}
+function openHelp(){
+  openDlg(head('使い方')+`<div class="help">
+  <h4>追加する</h4><ul><li>Mac: ほかのアプリで <span class="kbd">⌘C</span> → この画面で <span class="kbd">⌘V</span>（スクリーンショット、Excelの表もOK）</li>
+  <li>画像・PDF・大きなファイル: Finder からドラッグ＆ドロップ（複数可）</li><li>iPhone: 「＋追加」→ 貼り付け / 写真・ファイル / 入力</li></ul>
+  <h4>取り出す</h4><ul><li>カードをクリック（Enter）＝コピー。画像はPNGとしてコピー</li><li>画像・ファイル・テキストはカードを Keynote や Finder へドラッグでも渡せる</li>
+  <li>ファイルは「保存」でダウンロード</li></ul>
+  <h4>順番を決めて使う</h4><ul><li>左の <b>⋮⋮</b> をドラッグ、または <span class="kbd">⌥↑</span><span class="kbd">⌥↓</span> で並べ替え</li>
+  <li><b>順番にコピー</b>: 1件コピー →（相手のアプリで貼り付け）→ この画面で <span class="kbd">Space</span> または「次をコピー」で次の1件。Mac ではこのウィンドウを小さくして横に置くと楽</li>
+  <li><b>番号付きで保存</b>: 選んだものを 01_, 02_ … の順番付きで1つのZIPに保存</li>
+  <li><b>まとめてコピー</b>: 選んだテキストを並び順に、改行やタブでつないで1回でコピー</li></ul>
+  <h4>選択</h4><ul><li><span class="kbd">⌘</span>クリック・左の丸で選択、<span class="kbd">⇧</span>クリックで範囲、<span class="kbd">⌘A</span> で全選択、<span class="kbd">Esc</span> で解除</li></ul>
+  <h4>変換（テキストの「…」）</h4><ul><li>改行を整理（PDFのコピー）、英数を半角に、半角カナを全角に</li><li>Excelの表 → Markdown / LaTeX / CSV。変換すると自動でコピーされる</li></ul>
+  <h4>キー一覧</h4><ul><li><span class="kbd">↑↓</span> 移動　<span class="kbd">Enter</span> コピー　<span class="kbd">⌘C</span> コピー（複数選択時はまとめて）　<span class="kbd">Space</span> 選択／順番コピーの次　<span class="kbd">⌫</span> 削除（元に戻せる）　<span class="kbd">/</span> 検索　<span class="kbd">O</span> 詳細</li></ul>
+  <h4>データの保存場所</h4><ul><li>このブラウザの中（IndexedDB）にだけ保存。外部には送信しません。Safari とホーム画面／Dock のアプリは別々に保存されます</li></ul></div>`);
+  $('#dlg .sheet').onclick=e=>{if(e.target.closest('[data-d=close]'))closeDlg()};
+}
+
+/* ---------- メニュー ---------- */
+function closeMenus(){$('#mAdd').hidden=$('#mMore').hidden=true}
+function toggleMenu(id){const m=$(id),was=m.hidden;closeMenus();m.hidden=!was;if(id==='#mMore'&&was)showUsage()}
+async function showUsage(){
+  const total=order.reduce((s,id)=>s+(items.get(id).size||0),0);let t=`保存場所: このブラウザの中だけ（${order.length}件・${fmtSize(total)}）`;
+  try{if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();if(e.quota)t+=`／使用 ${fmtSize(e.usage||0)}・上限の目安 ${fmtSize(e.quota)}`}}catch(_){}
+  $('#usage').textContent=t;
+}
+function menuAction(m){
+  closeMenus();
+  if(m==='clip')readClipboard();
+  else if(m==='file')$('#file').click();
+  else if(m==='text')openNewText();
+  else if(m==='help')openHelp();
+  else if(m==='selall'){visibleIds().forEach(id=>sel.add(id));render()}
+  else if(m==='clear'){if(!order.length)return;
+    const sh=openDlg(head('すべて削除')+`<p>${order.length}件をすべて削除します。この操作は元に戻せません。</p><div class="row"><span class="sp"></span><button class="btn" data-d="close">やめる</button><button class="btn danger" data-d="ok">すべて削除</button></div>`);
+    sh.onclick=async e=>{const a=e.target.closest('[data-d]');if(!a)return;closeDlg();if(a.dataset.d==='ok'){
+      const ids=[...order];for(const id of ids){dropUrl(id);try{await delItem(id)}catch(_){}}items.clear();order=[];sel.clear();seq=null;cur=null;await saveOrder();render();sync();toast('すべて削除しました')}}}
+}
+$('#bAdd').onclick=e=>{e.stopPropagation();toggleMenu('#mAdd')};
+$('#bMore').onclick=e=>{e.stopPropagation();toggleMenu('#mMore')};
+document.addEventListener('click',e=>{const m=e.target.closest('[data-m]');if(m){menuAction(m.dataset.m);return}if(!e.target.closest('.menu'))closeMenus()});
+$('#file').onchange=async e=>{const fs=[...e.target.files];e.target.value='';const recs=[];for(const f of fs)recs.push(await recFromBlob(f,f.name));if(recs.length)await addRecs(recs)};
+$('#q').oninput=()=>render();
+$('#q').onkeydown=e=>{if(e.key==='Escape'){$('#q').value='';render();$('#q').blur()}else if(e.key==='Enter'||e.key==='ArrowDown'){e.preventDefault();const v=visibleIds();if(v.length){cur=v[0];$('#q').blur();render()}}};
+/* 記号パレット */
+const symEl=$('#sym');
+SYMS.forEach(s=>{const b=document.createElement('button');b.textContent=s;b.title=s+' をコピー';symEl.append(b)});
+symEl.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});
+symEl.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=document.activeElement;
+  if(a&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT')&&a!==catcher){a.setRangeText(b.textContent,a.selectionStart,a.selectionEnd,'end');a.dispatchEvent(new Event('input'));return}
+  writeText(b.textContent).then(()=>toast(`「${b.textContent}」をコピーしました`),()=>toast('コピーできませんでした'))};
+function setSym(on){symEl.hidden=!on;$('#bSym').classList.toggle('on',on);ls.set('sym',on)}
+$('#bSym').onclick=()=>setSym(symEl.hidden);setSym(ls.get('sym',false));
+
+/* ---------- 一覧の操作 ---------- */
+function setCur(id,scroll){cur=id;$$('.card.cur').forEach(c=>c.classList.remove('cur'));const el=listEl.querySelector(`[data-id="${id}"]`);if(el){el.classList.add('cur');if(scroll)el.scrollIntoView({block:'nearest'})}}
+function toggleSel(id){sel.has(id)?sel.delete(id):sel.add(id);anchor=id;render()}
+function rangeSel(id){const v=visibleIds();const a=v.indexOf(anchor??cur??id),b=v.indexOf(id);if(a<0){toggleSel(id);return}
+  const [s,e]=a<b?[a,b]:[b,a];for(let i=s;i<=e;i++)sel.add(v[i]);render()}
+listEl.addEventListener('click',e=>{
+  const card=e.target.closest('.card');if(!card||e.target.closest('.handle'))return;const id=card.dataset.id,it=items.get(id);
+  const a=e.target.closest('[data-a]');
+  if(a){const k=a.dataset.a;setCur(id);
+    if(k==='sel')toggleSel(id);else if(k==='copy')copyItem(it);else if(k==='save')saveItem(it);else if(k==='open')openItem(id);else if(k==='del')removeItems([id]);return}
+  if(e.shiftKey){rangeSel(id);setCur(id);return}
+  if(e.metaKey||e.ctrlKey||sel.size){toggleSel(id);setCur(id);return}
+  setCur(id);anchor=id;
+  if(it.kind==='file')toast('ファイルはカードをドラッグするか「保存」で取り出せます');else copyItem(it,{plain:e.altKey});
+});
+listEl.addEventListener('dblclick',e=>{const card=e.target.closest('.card');if(card&&!e.target.closest('[data-a],.handle'))openItem(card.dataset.id)});
+/* 外のアプリへドラッグ（テキスト・ファイル。画像はサムネイル自体をドラッグ） */
+let reordering=false;
+listEl.addEventListener('dragstart',e=>{
+  if(reordering){e.preventDefault();return}
+  const card=e.target.closest&&e.target.closest('.card');if(!card)return;dragOut=true;
+  const it=items.get(card.dataset.id);if(!it)return;const dt=e.dataTransfer;dt.effectAllowed='copy';
+  if(e.target.tagName==='IMG'){try{dt.setData('DownloadURL',`${it.mime}:${it.name}:${urlOf(it)}`)}catch(_){}return}
+  if(it.kind==='text'){dt.setData('text/plain',it.text);if(it.html)dt.setData('text/html',it.html)}
+  else{const u=urlOf(it);try{dt.setData('DownloadURL',`${it.mime}:${it.name}:${u}`)}catch(_){}dt.setData('text/uri-list',u)}
+});
+listEl.addEventListener('dragend',()=>{dragOut=false});
+/* 並べ替え（⋮⋮ をドラッグ。マウスとタッチ両対応） */
+listEl.addEventListener('pointerdown',e=>{
+  const h=e.target.closest('.handle');if(!h||$('#q').value.trim())return;
+  e.preventDefault();const card=h.closest('.card'),pid=e.pointerId;reordering=true;card.classList.add('dragging');
+  let y=e.clientY,raf=0;
+  const place=()=>{const cards=[...listEl.querySelectorAll('.card')].filter(c=>c!==card);
+    const before=cards.find(c=>{const r=c.getBoundingClientRect();return y<r.top+r.height/2});
+    if(before){if(card.nextSibling!==before)listEl.insertBefore(card,before)}else if(listEl.lastElementChild!==card)listEl.append(card)};
+  const tick=()=>{const r=mainEl.getBoundingClientRect();const v=y<r.top+50?-(r.top+50-y)/3:y>r.bottom-50?(y-(r.bottom-50))/3:0;
+    if(v){mainEl.scrollTop+=v;place()}raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick);
+  /* カードをDOM上で動かすとポインタキャプチャが外れるため、window で追跡する */
+  const move=ev=>{if(ev.pointerId!==pid)return;ev.preventDefault();y=ev.clientY;place()};
+  const up=async ev=>{if(ev.pointerId!==pid)return;removeEventListener('pointermove',move);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);cancelAnimationFrame(raf);
+    reordering=false;card.classList.remove('dragging');
+    const no=[...listEl.querySelectorAll('.card')].map(c=>c.dataset.id);
+    if(no.join()!==order.join()){order=no;if(seq)seq=null;await saveOrder();sync()}
+    cur=card.dataset.id;render()};
+  addEventListener('pointermove',move,{passive:false});addEventListener('pointerup',up);addEventListener('pointercancel',up);
+});
+async function moveCur(d){
+  if(!cur||$('#q').value.trim())return;const i=order.indexOf(cur),j=i+d;if(i<0||j<0||j>=order.length)return;
+  [order[i],order[j]]=[order[j],order[i]];if(seq)seq=null;render();setCur(cur,true);await saveOrder();sync();
+}
+function stepCur(d,extend){
+  const v=visibleIds();if(!v.length)return;let i=v.indexOf(cur);i=i<0?(d>0?0:v.length-1):Math.min(v.length-1,Math.max(0,i+d));
+  if(extend){if(cur)sel.add(cur);sel.add(v[i]);cur=v[i];render();setCur(v[i],true)}else setCur(v[i],true);
+}
+$('#bar').addEventListener('click',e=>{const b=e.target.closest('[data-b]');if(!b)return;const k=b.dataset.b;
+  if(k==='seqAll')seqStart([...order]);
+  else if(k==='seqSel'){const ids=selectedInOrder();sel.clear();seqStart(ids)}
+  else if(k==='seqNext')seqGo(1);else if(k==='seqPrev')seqGo(-1);else if(k==='seqEnd')seqEnd();
+  else if(k==='join')joinCopy();
+  else if(k==='zipSel')saveNumbered(selectedInOrder());
+  else if(k==='delSel')removeItems(selectedInOrder());
+  else if(k==='clearSel'){sel.clear();render()}
+});
+
+/* ---------- 貼り付け・ドロップ ---------- */
+const editable=t=>t&&t!==catcher&&t.closest&&!!t.closest('input,textarea,select,[contenteditable]');
+let refocus=null;
+document.addEventListener('paste',e=>{
+  if(editable(e.target)||!$('#dlg').hidden)return;
+  e.preventDefault();const cd=e.clipboardData;if(cd)addFromDT(cd);
+  if(document.activeElement===catcher){catcher.blur();if(refocus)try{refocus.focus({preventScroll:true})}catch(_){}refocus=null}
+});
+let dragDepth=0;
+const hasPayload=e=>!dragOut&&e.dataTransfer&&[...e.dataTransfer.types].some(t=>t==='Files'||t==='text/plain'||t==='text/uri-list');
+window.addEventListener('dragenter',e=>{if(!hasPayload(e))return;e.preventDefault();dragDepth++;document.body.classList.add('drop')});
+window.addEventListener('dragover',e=>{if(!hasPayload(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy'});
+window.addEventListener('dragleave',e=>{if(!hasPayload(e))return;if(--dragDepth<=0){dragDepth=0;document.body.classList.remove('drop')}});
+window.addEventListener('drop',e=>{dragDepth=0;document.body.classList.remove('drop');if(dragOut||!e.dataTransfer)return;
+  if(editable(e.target))return;e.preventDefault();addFromDT(e.dataTransfer)});
+
+/* ---------- キーボード（Mac） ---------- */
+document.addEventListener('keydown',e=>{
+  const t=e.target,mod=e.metaKey||e.ctrlKey,k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(!$('#dlg').hidden){if(e.key==='Escape'){e.preventDefault();closeDlg()}return}
+  if(e.key==='Escape'){closeMenus();if(seq)seqEnd();else if(sel.size){sel.clear();render()}else if(editable(t))t.blur();return}
+  if(editable(t))return;
+  /* Safari は編集できない場所では paste が発生しないことがあるため、⌘V の瞬間だけ隠しテキスト欄にフォーカスを移す */
+  if(mod&&k==='v'){refocus=document.activeElement;catcher.value='';catcher.focus({preventScroll:true});return}
+  if(mod&&k==='a'){e.preventDefault();visibleIds().forEach(id=>sel.add(id));render();return}
+  if(mod&&k==='c'){if(window.getSelection&&String(window.getSelection()))return;
+    if(sel.size>1){e.preventDefault();joinCopy()}else{const id=sel.size?[...sel][0]:cur;if(id){e.preventDefault();copyItem(items.get(id))}}return}
+  if(mod)return;
+  if(seq&&(e.key===' '||e.key==='ArrowRight')){e.preventDefault();seqGo(1);return}
+  if(seq&&e.key==='ArrowLeft'){e.preventDefault();seqGo(-1);return}
+  switch(e.key){
+    case 'ArrowDown':case 'ArrowUp':{e.preventDefault();const d=e.key==='ArrowDown'?1:-1;if(e.altKey)moveCur(d);else stepCur(d,e.shiftKey);break}
+    case 'Enter':if(cur){e.preventDefault();copyItem(items.get(cur),{plain:e.altKey})}break;
+    case ' ':if(cur){e.preventDefault();toggleSel(cur)}break;
+    case 'Backspace':case 'Delete':{const ids=sel.size?selectedInOrder():cur?[cur]:[];if(ids.length){e.preventDefault();removeItems(ids)}break}
+    case '/':e.preventDefault();$('#q').focus();break;
+    case 'o':case 'O':if(cur){e.preventDefault();openItem(cur)}break;
+  }
+});
+
+/* ---------- 起動 ---------- */
+(async()=>{
+  try{await openDB();await loadAll()}catch(e){db=null;toast('この環境では保存できません（閉じると消えます）')}
+  render();
+  setInterval(()=>{if(!document.hidden&&$('#dlg').hidden&&!reordering)$$('.card').forEach(c=>{const it=items.get(c.dataset.id);const m=c.querySelector('.meta');if(it&&m)m.textContent=metaOf(it)})},60000);
+})();
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

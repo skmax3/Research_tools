@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 色分けの種類
 enum ClipCategory: String, CaseIterable, Identifiable {
-    case text, link, image, file
+    case text, link, image, video, file
     var id: String { rawValue }
 
     var label: String {
@@ -11,6 +11,7 @@ enum ClipCategory: String, CaseIterable, Identifiable {
         case .text: return "テキスト"
         case .link: return "リンク"
         case .image: return "画像"
+        case .video: return "動画"
         case .file: return "ファイル"
         }
     }
@@ -20,6 +21,7 @@ enum ClipCategory: String, CaseIterable, Identifiable {
         case .text: return "text.alignleft"
         case .link: return "link"
         case .image: return "photo"
+        case .video: return "film"
         case .file: return "doc"
         }
     }
@@ -28,8 +30,9 @@ enum ClipCategory: String, CaseIterable, Identifiable {
         switch self {
         case .text: return .blue
         case .link: return .purple
-        case .image: return .green
-        case .file: return .orange
+        case .image: return .orange
+        case .video: return .pink
+        case .file: return .teal
         }
     }
 }
@@ -361,6 +364,27 @@ struct CardView: View {
             } else {
                 Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
             }
+        case .files where item.category == .video:
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack(alignment: .bottomTrailing) {
+                    if let img = ThumbCache.shared.image(for: item, store: store) {
+                        Image(nsImage: img).resizable().scaledToFit()
+                    } else {
+                        RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.75)).frame(height: 100)
+                    }
+                    if item.duration > 0 {
+                        Text(Self.timeText(item.duration))
+                            .font(.system(size: 10, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.black.opacity(0.6)))
+                            .padding(4)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: 110)
+                .overlay(Image(systemName: "play.circle.fill").font(.system(size: 28)).foregroundStyle(.white.opacity(0.9)).shadow(radius: 2))
+                Text(item.text).font(.system(size: 12)).lineLimit(2)
+            }
         case .files:
             VStack(alignment: .leading, spacing: 6) {
                 if let img = ThumbCache.shared.image(for: item, store: store) {
@@ -386,8 +410,20 @@ struct CardView: View {
         switch item.kind {
         case .text: return "\(from)\(item.text.count)文字・\(when)"
         case .image: return "\(from)\(item.width)×\(item.height)・\(when)"
-        case .files: return "\(from)\(item.paths.count)件・\(when)"
+        case .files:
+            if item.category == .video, item.duration > 0 {
+                return "\(from)\(Self.timeText(item.duration))\(item.width > 0 ? "・\(item.width)×\(item.height)" : "")・\(when)"
+            }
+            if item.paths.count == 1, item.width > 0 { return "\(from)\(item.width)×\(item.height)・\(when)" }
+            return "\(from)\(item.paths.count)件・\(when)"
         }
+    }
+
+    /// 秒 → 「1:05」「1:02:03」
+    static func timeText(_ sec: Double) -> String {
+        let t = Int(sec.rounded())
+        let h = t / 3600, m = (t % 3600) / 60, s = t % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 
     private static let relative: RelativeDateTimeFormatter = {

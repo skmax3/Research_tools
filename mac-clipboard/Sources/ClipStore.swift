@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import UniformTypeIdentifiers
 
 enum ClipKind: String, Codable {
     case text, image, files
@@ -25,6 +26,8 @@ struct ClipItem: Codable, Identifiable, Equatable {
     var appID = ""
     var date = Date()
     var pinned = false
+    /// 動画の長さ（秒）
+    var duration: Double = 0
 }
 
 /// 古い版で保存した index.json（項目が足りない）も読めるようにする
@@ -43,13 +46,20 @@ extension ClipItem {
         appID = try c.decodeIfPresent(String.self, forKey: .appID) ?? ""
         date = try c.decodeIfPresent(Date.self, forKey: .date) ?? Date()
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+        duration = try c.decodeIfPresent(Double.self, forKey: .duration) ?? 0
     }
 
     /// 色分けの種類（テキストのうち URL だけのものは「リンク」）
     var category: ClipCategory {
         switch kind {
         case .image: return .image
-        case .files: return .file
+        case .files:
+            // Finder でコピーしたファイルは、中身が動画・画像ならそれとして色分けする
+            let types = paths.map { UTType(filenameExtension: URL(fileURLWithPath: $0).pathExtension) }
+            guard !types.isEmpty, types.allSatisfy({ $0 != nil }) else { return .file }
+            if types.allSatisfy({ $0!.conforms(to: .movie) }) { return .video }
+            if types.allSatisfy({ $0!.conforms(to: .image) }) { return .image }
+            return .file
         case .text:
             let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.contains("\n"), !t.contains(" "), let url = URL(string: t),
@@ -125,6 +135,19 @@ final class ClipStore: ObservableObject {
         var item = items.remove(at: i)
         item.date = Date()
         items.insert(item, at: 0)
+        save()
+    }
+
+    /// 動画のサムネイル・大きさ・長さを後から入れる（読み込みに時間がかかるため）
+    func updateMedia(_ id: UUID, thumb: Data?, width: Int, height: Int, duration: Double) {
+        guard let i = items.firstIndex(where: { $0.id == id }) else { return }
+        if let thumb {
+            try? thumb.write(to: thumbURL(id))
+            ThumbCache.shared.remove(id)
+        }
+        items[i].width = width
+        items[i].height = height
+        items[i].duration = duration
         save()
     }
 

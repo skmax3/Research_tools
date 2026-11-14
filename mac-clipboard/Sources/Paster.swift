@@ -36,15 +36,40 @@ final class Paster {
         return true
     }
 
+    /// 複数の項目を1回の貼り付けにまとめる。
+    /// テキストだけ → 改行でつなぐ／ファイルだけ → まとめて／画像だけ → まとめて。種類が混ざっていたら false
+    func copyTogether(_ items: [ClipItem]) -> Bool {
+        let pb = NSPasteboard.general
+        let kinds = Set(items.map(\.kind))
+        guard kinds.count == 1, let kind = kinds.first else { return false }
+        pb.clearContents()
+        switch kind {
+        case .text:
+            pb.setString(items.map(\.text).joined(separator: "\n"), forType: .string)
+        case .files:
+            pb.writeObjects(items.flatMap(\.paths).map { URL(fileURLWithPath: $0) as NSURL })
+        case .image:
+            let images = items.compactMap { NSImage(contentsOf: store.imageURL($0.id)) }
+            guard !images.isEmpty else { return false }
+            pb.writeObjects(images)
+        }
+        watcher.ownChange = pb.changeCount
+        return true
+    }
+
     /// ⌘V を押したことにする（キー入力を作って送る）。アクセシビリティの許可が必要。
     /// キー配置を変えるアプリでも使う技術。
-    static func sendPaste() {
+    static func sendPaste() { sendKey(CGKeyCode(kVK_ANSI_V), flags: .maskCommand) }
+
+    /// Return キー（順番に貼るときのテキストの区切り）
+    static func sendReturn() { sendKey(CGKeyCode(kVK_Return), flags: []) }
+
+    static func sendKey(_ key: CGKeyCode, flags: CGEventFlags) {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let key = CGKeyCode(kVK_ANSI_V)
         let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
-        down?.flags = .maskCommand
+        down?.flags = flags
         let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
-        up?.flags = .maskCommand
+        up?.flags = flags
         down?.post(tap: .cgAnnotatedSessionEventTap)
         up?.post(tap: .cgAnnotatedSessionEventTap)
     }

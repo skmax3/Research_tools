@@ -21,8 +21,47 @@ struct ClipItem: Codable, Identifiable, Equatable {
     var hash = ""
     /// コピーしたときに前面にあったアプリ名
     var app = ""
+    /// そのアプリのバンドルID（アイコン表示・絞り込み用）
+    var appID = ""
     var date = Date()
     var pinned = false
+}
+
+/// 古い版で保存した index.json（項目が足りない）も読めるようにする
+extension ClipItem {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try c.decode(ClipKind.self, forKey: .kind)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        hasRTF = try c.decodeIfPresent(Bool.self, forKey: .hasRTF) ?? false
+        paths = try c.decodeIfPresent([String].self, forKey: .paths) ?? []
+        width = try c.decodeIfPresent(Int.self, forKey: .width) ?? 0
+        height = try c.decodeIfPresent(Int.self, forKey: .height) ?? 0
+        hash = try c.decodeIfPresent(String.self, forKey: .hash) ?? ""
+        app = try c.decodeIfPresent(String.self, forKey: .app) ?? ""
+        appID = try c.decodeIfPresent(String.self, forKey: .appID) ?? ""
+        date = try c.decodeIfPresent(Date.self, forKey: .date) ?? Date()
+        pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+    }
+
+    /// 色分けの種類（テキストのうち URL だけのものは「リンク」）
+    var category: ClipCategory {
+        switch kind {
+        case .image: return .image
+        case .files: return .file
+        case .text:
+            let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.contains("\n"), !t.contains(" "), let url = URL(string: t),
+               let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) {
+                return .link
+            }
+            return .text
+        }
+    }
+
+    /// アプリでまとめるときのキー
+    var appKey: String { appID.isEmpty ? app : appID }
 }
 
 /// 履歴の保存場所: ~/Library/Application Support/ClipShelf/
@@ -68,7 +107,7 @@ final class ClipStore: ObservableObject {
         if let i = items.firstIndex(where: { $0.kind == item.kind && $0.hash == item.hash }) {
             var old = items.remove(at: i)
             old.date = Date()
-            if !item.app.isEmpty { old.app = item.app }
+            if !item.app.isEmpty { old.app = item.app; old.appID = item.appID }
             items.insert(old, at: 0)
             save()
             return

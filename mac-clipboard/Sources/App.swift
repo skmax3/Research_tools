@@ -29,6 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let trustItem = NSMenuItem(title: "自動貼り付けを許可する（アクセシビリティ）…", action: #selector(AppDelegate.openAccessibility), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // すでに別のクリップ棚が動いていたら終了させる（Xcode から実行したときと、インストール版が二重に動かないように）
+        let me = NSRunningApplication.current
+        for other in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+        where other.processIdentifier != me.processIdentifier {
+            other.terminate()
+        }
+
         store.load()
         watcher = PasteboardWatcher(store: store)
         watcher.start()
@@ -37,10 +44,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupStatusItem()
 
         // ⇧⌘X でパネルを出す（Carbon のホットキー。アクセシビリティの許可は不要）
+        registerHotKey(retry: true)
+    }
+
+    private func registerHotKey(retry: Bool) {
         hotKey = HotKey(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(cmdKey | shiftKey)) { [weak self] in
             self?.panel.toggle()
         }
-        if hotKey == nil {
+        if hotKey != nil { return }
+        if retry {
+            // 終了させた古いクリップ棚がまだショートカットを持っていることがあるので、少し待ってやり直す
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.registerHotKey(retry: false) }
+        } else {
             alert("⇧⌘X を登録できませんでした", "ほかのアプリが同じショートカットを使っている可能性があります。メニューバーのアイコンからも開けます。")
         }
     }

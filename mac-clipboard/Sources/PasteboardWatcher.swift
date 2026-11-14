@@ -45,7 +45,9 @@ final class PasteboardWatcher {
     private func capture() {
         guard let types = pb.types, !types.isEmpty else { return }
         if types.contains(where: { ignoredTypes.contains($0.rawValue) }) { return }
-        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+        let front = NSWorkspace.shared.frontmostApplication
+        let app = front?.localizedName ?? ""
+        let appID = front?.bundleIdentifier ?? ""
 
         // 1) Finder などでコピーしたファイル
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
@@ -54,6 +56,7 @@ final class PasteboardWatcher {
             item.paths = urls.map(\.path)
             item.text = urls.map(\.lastPathComponent).joined(separator: "\n")
             item.app = app
+            item.appID = appID
             item.hash = ClipStore.hash(Data(item.paths.joined(separator: "\n").utf8))
             var thumb: Data?
             if urls.count == 1, let img = NSImage(contentsOf: urls[0]) {  // HEIC も macOS が読める
@@ -72,6 +75,7 @@ final class PasteboardWatcher {
             var item = ClipItem(kind: .image)
             (item.width, item.height) = ImageUtil.pixelSize(img)
             item.app = app
+            item.appID = appID
             item.hash = ClipStore.hash(png)
             store.add(item, image: png, thumb: ImageUtil.thumbnail(img, maxSide: 360))
             return
@@ -82,6 +86,7 @@ final class PasteboardWatcher {
         var item = ClipItem(kind: .text)
         item.text = text
         item.app = app
+        item.appID = appID
         item.hash = ClipStore.hash(Data(text.utf8))
         let rtf = pb.data(forType: .rtf)
         item.hasRTF = rtf != nil

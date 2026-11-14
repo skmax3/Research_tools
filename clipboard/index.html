@@ -226,8 +226,125 @@ function toast(msg,act){
   $('#toast').hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>$('#toast').hidden=true,act?6000:2200);
 }
 
+/* ---------- HEIC（iPhone の写真）→ JPEG ----------
+   Safari は HEIC をそのまま表示できるので <img> で変換する。
+   Chrome は表示できないため、HEIF の箱構造を自前で読み、HEVC のタイルを WebCodecs（Mac のハードウェアデコーダ）で
+   1枚ずつ戻して並べ、irot/imir（回転・反転）を当てる。外部ライブラリは使わない。 */
+/* HEIF-BEGIN */
+const HEIF=(()=>{
+  const s4=(dv,p)=>String.fromCharCode(dv.getUint8(p),dv.getUint8(p+1),dv.getUint8(p+2),dv.getUint8(p+3));
+  function boxes(dv,start,end){
+    const out=[];let p=start;
+    while(p+8<=end){let size=dv.getUint32(p),hdr=8;const type=s4(dv,p+4);
+      if(size===1){size=Number(dv.getBigUint64(p+8));hdr=16}else if(size===0)size=end-p;
+      if(size<hdr||p+size>end)break;out.push({type,body:p+hdr,end:p+size});p+=size}
+    return out;
+  }
+  function parse(buf){
+    const dv=new DataView(buf),top=boxes(dv,0,buf.byteLength);
+    const meta=top.find(b=>b.type==='meta');if(!meta)throw new Error('HEIF: meta がありません');
+    const mb=boxes(dv,meta.body+4,meta.end),get=t=>mb.find(b=>b.type===t);
+    const pi=get('pitm');const primary=dv.getUint8(pi.body)===0?dv.getUint16(pi.body+4):dv.getUint32(pi.body+4);
+    const types=new Map();
+    {const b=get('iinf'),v=dv.getUint8(b.body);
+      for(const e of boxes(dv,b.body+4+(v===0?2:4),b.end)){if(e.type!=='infe')continue;const ev=dv.getUint8(e.body);if(ev<2)continue;
+        let q=e.body+4;const id=ev===2?dv.getUint16(q):dv.getUint32(q);q+=(ev===2?2:4)+2;types.set(id,s4(dv,q))}}
+    const locs=new Map();
+    {const b=get('iloc');let p=b.body;const v=dv.getUint8(p);p+=4;const a=dv.getUint8(p++),c=dv.getUint8(p++);
+      const os=a>>4,ls=a&15,bs=c>>4,is=(v===1||v===2)?c&15:0;
+      const rd=n=>{let x=0;for(let i=0;i<n;i++)x=x*256+dv.getUint8(p++);return x};
+      const cnt=v<2?rd(2):rd(4);
+      for(let i=0;i<cnt;i++){const id=v<2?rd(2):rd(4);let cm=0;if(v===1||v===2)cm=rd(2)&15;rd(2);const base=rd(bs),ec=rd(2),ex=[];
+        for(let j=0;j<ec;j++){if(is)rd(is);const off=rd(os),len=rd(ls);ex.push([base+off,len])}locs.set(id,{cm,ex})}}
+    const idat=get('idat');
+    const data=id=>{const l=locs.get(id);if(!l)throw new Error('HEIF: 位置情報がありません');
+      const parts=l.ex.map(([o,len])=>{const s=(l.cm===1?idat.body:0)+o;return new Uint8Array(buf,s,len||((l.cm===1?idat.end:buf.byteLength)-s))});
+      if(parts.length===1)return parts[0];const u=new Uint8Array(parts.reduce((n,x)=>n+x.length,0));let k=0;for(const x of parts){u.set(x,k);k+=x.length}return u};
+    const refs=[];const ir=get('iref');
+    if(ir){const v=dv.getUint8(ir.body);for(const r of boxes(dv,ir.body+4,ir.end)){let q=r.body;const rid=()=>{const x=v===0?dv.getUint16(q):dv.getUint32(q);q+=v===0?2:4;return x};
+      const from=rid(),n=dv.getUint16(q);q+=2;const to=[];for(let k=0;k<n;k++)to.push(rid());refs.push({type:r.type,from,to})}}
+    const ipr=get('iprp'),ib=boxes(dv,ipr.body,ipr.end),ipco=ib.find(b=>b.type==='ipco'),props=boxes(dv,ipco.body,ipco.end),assoc=new Map();
+    for(const m of ib.filter(b=>b.type==='ipma')){const v=dv.getUint8(m.body),fl=dv.getUint8(m.body+3)&1;let q=m.body+4;const n=dv.getUint32(q);q+=4;
+      for(let i=0;i<n;i++){const id=v<1?dv.getUint16(q):dv.getUint32(q);q+=v<1?2:4;const k=dv.getUint8(q++),list=assoc.get(id)||[];
+        for(let j=0;j<k;j++){let x;if(fl){x=dv.getUint16(q)&0x7fff;q+=2}else{x=dv.getUint8(q)&0x7f;q++}if(x)list.push(props[x-1])}assoc.set(id,list)}}
+    const pr=(id,t)=>(assoc.get(id)||[]).find(b=>b.type===t);
+    const hvcC=id=>{const p=pr(id,'hvcC');if(!p)throw new Error('HEIF: hvcC がありません');return new Uint8Array(buf,p.body,p.end-p.body)};
+    const ispe=id=>{const p=pr(id,'ispe');return {w:dv.getUint32(p.body+4),h:dv.getUint32(p.body+8)}};
+    const transforms=(assoc.get(primary)||[]).filter(b=>b.type==='irot'||b.type==='imir').map(b=>b.type==='irot'?{t:'irot',a:dv.getUint8(b.body)&3}:{t:'imir',axis:dv.getUint8(b.body)&1});
+    const type=types.get(primary);
+    if(type==='hvc1'){const s=ispe(primary);return {w:s.w,h:s.h,cols:1,rows:1,tiles:[{cfg:hvcC(primary),data:data(primary),...s}],transforms}}
+    if(type==='grid'){
+      const g=data(primary),gv=new DataView(g.buffer,g.byteOffset,g.byteLength),big=g[1]&1,rows=g[2]+1,cols=g[3]+1;
+      const w=big?gv.getUint32(4):gv.getUint16(4),h=big?gv.getUint32(8):gv.getUint16(6);
+      const ref=refs.find(r=>r.type==='dimg'&&r.from===primary);if(!ref||ref.to.length!==rows*cols)throw new Error('HEIF: タイルの数が合いません');
+      return {w,h,cols,rows,tiles:ref.to.map(id=>({cfg:hvcC(id),data:data(id),...ispe(id)})),transforms};
+    }
+    throw new Error('HEIF: 未対応の形式 '+type);
+  }
+  /* hvcC から WebCodecs 用の codec 文字列（例 hvc1.1.6.L93.B0）を作る */
+  function codec(c){
+    const sp=c[1]>>6,tier=(c[1]>>5)&1,pi=c[1]&31;let f=((c[2]<<24)|(c[3]<<16)|(c[4]<<8)|c[5])>>>0,r=0;
+    for(let i=0;i<32;i++){r=(r<<1)|(f&1);f>>>=1}
+    const cons=[...c.slice(6,12)];while(cons.length&&!cons[cons.length-1])cons.pop();
+    return `hvc1.${['','A','B','C'][sp]}${pi}.${(r>>>0).toString(16).toUpperCase()}.${tier?'H':'L'}${c[12]}`+cons.map(b=>'.'+b.toString(16).toUpperCase()).join('');
+  }
+  return {parse,codec};
+})();
+/* HEIF-END */
+const isHeic=(blob,name)=>/image\/hei[cf]/i.test(blob.type||'')||/\.(heic|heif)$/i.test(name||'');
+function applyTransforms(src,ts){
+  let c=src;
+  for(const t of ts){
+    if(t.t==='irot'&&!t.a)continue;
+    const n=document.createElement('canvas'),g=n.getContext('2d');
+    if(t.t==='irot'){n.width=t.a%2?c.height:c.width;n.height=t.a%2?c.width:c.height;g.translate(n.width/2,n.height/2);g.rotate(-t.a*Math.PI/2);g.drawImage(c,-c.width/2,-c.height/2)}
+    else{n.width=c.width;n.height=c.height;/* imir: axis=1 で左右反転、0 で上下反転（libheif と同じ解釈） */if(t.axis===1){g.translate(n.width,0);g.scale(-1,1)}else{g.translate(0,n.height);g.scale(1,-1)}g.drawImage(c,0,0)}
+    c=n;
+  }
+  return c;
+}
+async function heifToCanvas(buf){
+  const im=HEIF.parse(buf);
+  if(!('VideoDecoder' in window))throw new Error('このブラウザは WebCodecs に未対応');
+  const c=document.createElement('canvas');c.width=im.w;c.height=im.h;const g=c.getContext('2d');
+  const tw=im.tiles[0].w,th=im.tiles[0].h;let err=null,drawn=0;
+  const dec=new VideoDecoder({output:f=>{const i=Math.round(f.timestamp/1000);g.drawImage(f,(i%im.cols)*tw,Math.floor(i/im.cols)*th);f.close();drawn++},error:e=>{err=e}});
+  let curCfg=null;
+  for(let i=0;i<im.tiles.length;i++){
+    const t=im.tiles[i];
+    if(!curCfg||t.cfg.length!==curCfg.length||t.cfg.some((b,k)=>b!==curCfg[k])){
+      const cfg={codec:HEIF.codec(t.cfg),description:t.cfg,codedWidth:t.w,codedHeight:t.h};
+      const s=await VideoDecoder.isConfigSupported(cfg);if(!s.supported)throw new Error('このブラウザは HEVC の読み込みに未対応');
+      dec.configure(cfg);curCfg=t.cfg;
+    }
+    dec.decode(new EncodedVideoChunk({type:'key',timestamp:i*1000,data:t.data}));
+  }
+  await dec.flush();dec.close();
+  if(err)throw err;if(drawn!==im.tiles.length)throw new Error('HEIF: 一部のタイルを読めませんでした');
+  return applyTransforms(c,im.transforms);
+}
+async function heicToJpeg(blob){
+  let c=null;
+  const u=URL.createObjectURL(blob);
+  try{const img=new Image();img.src=u;await img.decode();c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0)}
+  catch(_){c=null}finally{URL.revokeObjectURL(u)}
+  if(!c)c=await heifToCanvas(await blob.arrayBuffer());
+  const jpg=await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('jpeg')),'image/jpeg',.92));
+  return {blob:jpg,w:c.width,h:c.height};
+}
+let heicWarned=false;
+async function heicRec(blob,name){
+  const base=(name||'').replace(/\.(heic|heif)$/i,'')||'写真_'+stamp();
+  const r=await heicToJpeg(blob);
+  return {kind:'image',blob:r.blob,mime:'image/jpeg',size:r.blob.size,w:r.w,h:r.h,name:base+'.jpg',orig:blob,origName:name||base+'.heic'};
+}
+
 /* ---------- 追加 ---------- */
 async function recFromBlob(blob,name){
+  if(isHeic(blob,name)){
+    try{return await heicRec(blob,name)}
+    catch(e){console.warn(e);if(!heicWarned){heicWarned=true;toast('HEIC を変換できませんでした（このブラウザ・Mac が未対応の可能性）。ファイルとして追加します')}}
+  }
   const mime=blob.type||'application/octet-stream';
   const rec={kind:'file',blob,mime,size:blob.size,name:name||''};
   if(mime.startsWith('image/')){
@@ -313,6 +430,13 @@ async function toPng(blob){
   const u=URL.createObjectURL(blob);
   try{const img=new Image();img.src=u;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;
     c.getContext('2d').drawImage(img,0,0);return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('png')),'image/png'))}
+  finally{URL.revokeObjectURL(u)}
+}
+async function toJpeg(blob){
+  const u=URL.createObjectURL(blob);
+  try{const img=new Image();img.src=u;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0);
+    return await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('jpg')),'image/jpeg',.92))}
   finally{URL.revokeObjectURL(u)}
 }
 /* text は省略可（詳細画面で編集中の文字を渡す） */
@@ -437,7 +561,7 @@ function visibleIds(){const q=$('#q').value.trim();return order.filter(id=>match
 function metaOf(it){
   const t=ago(it.t);
   if(it.kind==='text'){const lines=it.text.split('\n').length;return `テキスト・${it.text.length.toLocaleString()}文字${lines>1?'・'+lines+'行':''}${it.html?'・書式あり':''}・${t}`}
-  if(it.kind==='image')return `${it.w}×${it.h}・${fmtSize(it.size)}・${t}`;
+  if(it.kind==='image')return `${it.w}×${it.h}・${fmtSize(it.size)}${it.orig?'・HEICから変換':''}・${t}`;
   return `${(extOf(it.name)||'file').toUpperCase()}・${fmtSize(it.size)}・${t}`;
 }
 function cardEl(it,n){
@@ -531,17 +655,22 @@ function openItem(id){
     (it.kind==='image'?`<div class="preview"><img alt=""></div>`:'')+
     `<input class="ed" id="dName" value="" aria-label="ファイル名"><p class="kv" id="dKv"></p>
     <div class="row">${it.kind==='image'?`<button class="btn primary" data-d="copy">${IC.copy}コピー</button>`:''}
-    <button class="btn" data-d="save">${IC.save}保存</button>${canShareFiles()?`<button class="btn" data-d="share">共有…</button>`:''}
+    <button class="btn" data-d="save">${IC.save}保存${it.kind==='image'?`（${(extOf(it.name)||'').toUpperCase()||'元の形式'}）`:''}</button>
+    ${it.kind==='image'?`${it.mime!=='image/jpeg'?`<button class="btn" data-d="saveJpg">JPEGで保存</button>`:''}${it.mime!=='image/png'?`<button class="btn" data-d="savePng">PNGで保存</button>`:''}${it.orig?`<button class="btn" data-d="saveOrig">元のHEICで保存</button>`:''}`:''}
+    ${canShareFiles()?`<button class="btn" data-d="share">共有…</button>`:''}
     <span class="sp"></span><button class="btn danger" data-d="del">${IC.trash}削除</button></div>`);
   if(it.kind==='image')sh.querySelector('img').src=urlOf(it);
   sh.querySelector('#dName').value=it.name;
-  sh.querySelector('#dKv').textContent=`${it.mime}・${fmtSize(it.size)}${it.w?`・${it.w}×${it.h} px`:''}・追加 ${new Date(it.t).toLocaleString('ja-JP')}`;
+  sh.querySelector('#dKv').textContent=`${it.mime}・${fmtSize(it.size)}${it.w?`・${it.w}×${it.h} px`:''}${it.orig?`・元: ${it.origName}（${fmtSize(it.orig.size)}）`:''}・追加 ${new Date(it.t).toLocaleString('ja-JP')}`;
   const commitName=async()=>{const v=safeName(sh.querySelector('#dName').value);if(v&&v!==it.name){it.name=v;await putItem(it);render();sync()}};
   $('#dlg').onclose=commitName;
   sh.onclick=async e=>{const a=e.target.closest('[data-d]');if(!a)return;const k=a.dataset.d;
     if(k==='close')closeDlg();
     else if(k==='copy')copyItem(it);
     else if(k==='save'){await commitName();saveItem(it)}
+    else if(k==='saveJpg'||k==='savePng'){await commitName();const png=k==='savePng';
+      try{const b=png?await toPng(it.blob):await toJpeg(it.blob);download(b,it.name.replace(/\.[^.]*$/,'')+(png?'.png':'.jpg'))}catch(_){toast('変換できませんでした')}}
+    else if(k==='saveOrig')download(it.orig,it.origName)
     else if(k==='share'){await commitName();shareItem(it)}
     else if(k==='del'){closeDlg();removeItems([it.id])}};
 }
@@ -738,10 +867,21 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+/* 以前に「ファイル」として入った HEIC を、変換できる環境なら画像に置き換える */
+async function convertOldHeic(){
+  const olds=order.map(id=>items.get(id)).filter(it=>it.kind==='file'&&isHeic(it.blob,it.name));
+  let n=0;
+  for(const it of olds){
+    try{const r=await heicRec(it.blob,it.name);Object.assign(it,r);await putItem(it);n++}catch(e){console.warn(e);break}
+  }
+  if(n){render();sync();toast(`HEIC ${n}件を JPEG に変換しました`)}
+}
+
 /* ---------- 起動 ---------- */
 (async()=>{
   try{await openDB();await loadAll()}catch(e){db=null;toast('この環境では保存できません（閉じると消えます）')}
   render();
+  convertOldHeic();
   setInterval(()=>{if(!document.hidden&&$('#dlg').hidden&&!reordering)$$('.card').forEach(c=>{const it=items.get(c.dataset.id);const m=c.querySelector('.meta');if(it&&m)m.textContent=metaOf(it)})},60000);
 })();
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});

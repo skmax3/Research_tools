@@ -7,7 +7,7 @@
 | 優先 | アプリ | フォルダ | 状態 | メモ |
 |---|---|---|---|---|
 | — | 写真寸法メモ | `photo-memo/` | 公開済み | 写真に矢印・寸法線・コメントを書き込む |
-| 1 | クリップボード（Mac 内部で使う版） | `clipboard/` | 開発中 | MVP 実装済み・実機確認待ち（マージ後に「公開済み」へ）。Mac⇄iPhone 受け渡しは保留（調査結果は [`clipboard/SPEC.md`](clipboard/SPEC.md)） |
+| 1 | クリップボード（Mac 内部で使う版） | `clipboard/` | 公開済み | MVP。Mac（Chrome アプリ）で動作確認済み。Maccy（履歴）・Clipy（スニペット）と併用。Mac⇄iPhone 受け渡しは保留（調査結果は [`clipboard/SPEC.md`](clipboard/SPEC.md)） |
 | 2 | PCスリープ中にスマホからフォルダ作業 | — | 方式検討中 | 下記「メモ」参照 |
 
 状態の目安: 案 → 仕様メモのみ → 開発中 → 公開済み

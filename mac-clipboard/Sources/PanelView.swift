@@ -152,7 +152,10 @@ struct CardView: View {
     }
 
     private var footer: String {
-        let when = CardView.relative.localizedString(for: item.date, relativeTo: Date())
+        // 直後は「0秒後」と表示されてしまうので、1分以内は「たった今」にする
+        let now = Date()
+        let when = now.timeIntervalSince(item.date) < 60
+            ? "たった今" : CardView.relative.localizedString(for: item.date, relativeTo: now)
         switch item.kind {
         case .text: return "\(item.text.count)文字・\(when)"
         case .image: return "\(item.width)×\(item.height)・\(when)"

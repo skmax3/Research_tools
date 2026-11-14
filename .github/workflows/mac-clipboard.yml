@@ -1,0 +1,52 @@
+# Mac アプリ（mac-clipboard/）を GitHub の Mac 環境でビルドして、コンパイルできるか確認する。
+# 作業ブランチでは、project.yml から作った Xcode プロジェクト（ClipShelf.xcodeproj）を自動でコミットする。
+name: mac-clipboard
+
+on:
+  push:
+    paths:
+      - 'mac-clipboard/**'
+      - '.github/workflows/mac-clipboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-clipboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: XcodeGen を入れる
+        run: brew install xcodegen
+
+      - name: Xcode プロジェクトを生成
+        working-directory: mac-clipboard
+        run: xcodegen generate
+
+      - name: ビルド（署名なし）
+        working-directory: mac-clipboard
+        run: |
+          xcodebuild -version
+          xcodebuild -project ClipShelf.xcodeproj -scheme ClipShelf -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO -quiet build
+
+      - name: 生成したプロジェクトをコミット（作業ブランチのみ）
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mac-clipboard/ClipShelf.xcodeproj mac-clipboard/Config/Info.plist
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "mac-clipboard: Xcode プロジェクトを自動生成"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

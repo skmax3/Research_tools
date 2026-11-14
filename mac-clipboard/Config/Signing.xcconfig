@@ -1,0 +1,10 @@
+// 署名の設定。初期値は「このMacで実行するための署名（Sign to Run Locally）」。
+// Apple ID の無料チームで署名したい場合は、同じフォルダに Local.xcconfig を作って
+// 下の3つを上書きする（Local.xcconfig は Git に入らない）。例:
+//   CLIP_SIGN_STYLE = Automatic
+//   CLIP_SIGN_IDENTITY = Apple Development
+//   CLIP_TEAM = ABCDE12345
+CLIP_SIGN_STYLE = Manual
+CLIP_SIGN_IDENTITY = -
+CLIP_TEAM =
+#include? "Local.xcconfig"

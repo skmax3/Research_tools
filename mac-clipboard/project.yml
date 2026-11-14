@@ -1,0 +1,44 @@
+# XcodeGen の設定。GitHub Actions がこれから ClipShelf.xcodeproj を自動生成してコミットする。
+# 設定を変えるときはこのファイルを編集する（.xcodeproj は直接いじらない）。
+name: ClipShelf
+options:
+  bundleIdPrefix: io.github.skmax3
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: ja
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ClipShelf:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - Resources
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: クリップ棚
+        CFBundleName: ClipShelf
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: ja
+        LSUIElement: true
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: ""
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.skmax3.clipshelf
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: NO
+        # 署名は Config/Signing.xcconfig（＋任意の Local.xcconfig）で決める
+        CODE_SIGN_STYLE: $(CLIP_SIGN_STYLE)
+        CODE_SIGN_IDENTITY: $(CLIP_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(CLIP_TEAM)
+    scheme: {}

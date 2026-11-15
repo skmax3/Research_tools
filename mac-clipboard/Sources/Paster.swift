@@ -36,6 +36,14 @@ final class Paster {
         return true
     }
 
+    /// 文字列をそのままクリップボードに入れる（変換結果の貼り付け用）
+    func copyText(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+        watcher.ownChange = pb.changeCount
+    }
+
     /// 複数の項目を1回の貼り付けにまとめる。
     /// テキストだけ → 改行でつなぐ／ファイルだけ → まとめて／画像だけ → まとめて。種類が混ざっていたら false
     func copyTogether(_ items: [ClipItem]) -> Bool {

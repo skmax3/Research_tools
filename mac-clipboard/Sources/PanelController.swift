@@ -34,6 +34,8 @@ final class PanelState: ObservableObject {
     /// アプリごとにまとめて並べる
     @Published var sortByApp = false
     @Published var focusToken = 0
+    /// 自動貼り付けがオンなのに、アクセシビリティの許可がない
+    @Published var needsTrust = false
 
     func togglePick(_ id: UUID) {
         if let i = picked.firstIndex(of: id) { picked.remove(at: i) } else { picked.append(id) }
@@ -45,6 +47,7 @@ struct PanelActions {
     var paste: (ClipItem) -> Void
     var pastePicked: (_ together: Bool) -> Void
     var transform: (ClipItem, TextTransform) -> Void
+    var openTrust: () -> Void
 }
 
 /// 画面の下からせり上がる履歴パネル
@@ -54,7 +57,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let state = PanelState()
     private var panel: KeyPanel!
     private var visible = false
-    private let panelHeight: CGFloat = 340
+    private let panelHeight: CGFloat = 364
     private var askedTrust = false
 
     init(store: ClipStore, paster: Paster) {
@@ -88,7 +91,13 @@ final class PanelController: NSObject, NSWindowDelegate {
         let actions = PanelActions(
             paste: { [weak self] item in self?.pasteOne(item, plain: false) },
             pastePicked: { [weak self] together in self?.pastePicked(together: together) },
-            transform: { [weak self] item, t in self?.transform(item, t) }
+            transform: { [weak self] item, t in self?.transform(item, t) },
+            openTrust: {
+                Paster.requestTrust()
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         )
         let host = NSHostingView(rootView: PanelView(store: store, state: state, actions: actions))
         host.frame = effect.bounds
@@ -107,6 +116,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         state.query = ""
         state.selected = 0
         state.picked = []
+        state.needsTrust = Settings.autoPaste && !Paster.trusted
 
         // マウスがある画面の、Dock より上に出す
         let mouse = NSEvent.mouseLocation

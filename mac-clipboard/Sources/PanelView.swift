@@ -120,10 +120,10 @@ struct PanelView: View {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("検索", text: $state.query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(.system(size: 15))
                 .focused($searchFocused)
-                .frame(width: 160)
-            Divider().frame(height: 18)
+                .frame(width: 150)
+            Divider().frame(height: 22)
             Chip(title: "すべて", symbol: nil, color: .gray, on: state.kind == nil) { state.kind = nil }
             ForEach(ClipCategory.allCases) { c in
                 Chip(title: c.label, symbol: c.symbol, color: c.color, on: state.kind == c) {
@@ -207,14 +207,21 @@ struct PanelView: View {
     // 3段目: 複数選択中の操作、またはキー操作のヒント
     private var footer: some View {
         HStack(spacing: 10) {
-            if state.picked.isEmpty {
+            if state.needsTrust {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text("自動貼り付けの許可がありません。今は「コピーまで」なので、選んだあと ⌘V を押してください。")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Button("許可の設定を開く") { actions.openTrust() }
+                    .buttonStyle(.borderedProminent)
+            } else if state.picked.isEmpty {
                 Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　⌘T・右クリック 変換　Tab 種類　⌘1〜9　⌘P ピン　⌘⌫ 削除　Esc")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary.opacity(0.75))
                     .lineLimit(1)
             } else {
                 Text("\(state.picked.count)件を選択中（番号の順に貼ります）")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                 Button { actions.pastePicked(false) } label: {
                     Label("順番に貼り付け　Enter", systemImage: "list.number")
                 }
@@ -228,9 +235,8 @@ struct PanelView: View {
             }
             Spacer()
         }
-        .controlSize(.small)
         .padding(.horizontal, 18)
-        .frame(height: 24)
+        .frame(height: 28)
     }
 
     /// 他のアプリへドラッグして渡す
@@ -257,14 +263,18 @@ struct Chip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                if let symbol { Image(systemName: symbol).font(.system(size: 10, weight: .semibold)) }
-                Text(title).font(.system(size: 11, weight: .semibold))
+            HStack(spacing: 5) {
+                if let symbol {
+                    Image(systemName: symbol).font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(on ? Color.white : color)
+                }
+                Text(title).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(on ? Color.white : Color.primary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .foregroundStyle(on ? Color.white : color)
-            .background(Capsule().fill(on ? color : color.opacity(0.14)))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(on ? color : color.opacity(0.22)))
+            .overlay(Capsule().strokeBorder(color.opacity(on ? 0 : 0.45), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -280,14 +290,15 @@ struct AppChip: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if let icon = AppIcons.icon(entry.bundleID) {
-                    Image(nsImage: icon).resizable().frame(width: 14, height: 14)
+                    Image(nsImage: icon).resizable().frame(width: 16, height: 16)
                 }
-                Text("\(entry.name) \(entry.count)").font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                Text("\(entry.name) \(entry.count)").font(.system(size: 13, weight: .semibold)).lineLimit(1)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
             .foregroundStyle(on ? Color.white : Color.primary)
-            .background(Capsule().fill(on ? Color.accentColor : Color.secondary.opacity(0.14)))
+            .background(Capsule().fill(on ? Color.accentColor : Color.secondary.opacity(0.22)))
+            .overlay(Capsule().strokeBorder(Color.secondary.opacity(on ? 0 : 0.4), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -307,8 +318,8 @@ struct CardView: View {
             HStack(spacing: 6) {
                 // 種類のラベル（色分け）
                 HStack(spacing: 3) {
-                    Image(systemName: cat.symbol).font(.system(size: 9, weight: .bold))
-                    Text(cat.label).font(.system(size: 10, weight: .bold))
+                    Image(systemName: cat.symbol).font(.system(size: 10, weight: .bold))
+                    Text(cat.label).font(.system(size: 11, weight: .bold))
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
@@ -341,15 +352,15 @@ struct CardView: View {
                 if let icon = AppIcons.icon(item.appID) {
                     Image(nsImage: icon).resizable().frame(width: 14, height: 14)
                 }
-                Text(footerText).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                Text(footerText).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 Spacer(minLength: 0)
                 if index < 9 {
-                    Text("⌘\(index + 1)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    Text("⌘\(index + 1)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 }
             }
         }
         .padding(10)
-        .frame(width: 220, height: 210)
+        .frame(width: 230, height: 220)
         .background(
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .textBackgroundColor).opacity(0.92))
@@ -370,7 +381,7 @@ struct CardView: View {
         switch item.kind {
         case .text:
             Text(item.text.prefix(600))
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .lineLimit(8)
                 .foregroundStyle(item.category == .link ? Color.purple : Color.primary)
         case .image:

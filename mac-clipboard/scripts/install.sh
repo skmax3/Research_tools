@@ -17,6 +17,13 @@ osascript -e 'tell application id "io.github.skmax3.clipshelf" to quit' >/dev/nu
 sleep 1
 pkill -x ClipShelf >/dev/null 2>&1 || true
 
+# Apple ID で署名していない場合、入れ直すと前のアクセシビリティの許可は無効になる（設定画面ではオンに見えるのに効かない）。
+# 古い許可を消しておき、新しく許可し直せるようにする
+if [ ! -f Config/Local.xcconfig ]; then
+  tccutil reset Accessibility io.github.skmax3.clipshelf >/dev/null 2>&1 || true
+  NEED_TRUST=1
+fi
+
 echo "▶ アプリケーションフォルダに入れます"
 rm -rf /Applications/ClipShelf.app
 cp -R build/Build/Products/Release/ClipShelf.app /Applications/
@@ -26,3 +33,9 @@ defaults write io.github.skmax3.clipshelf repoPath "$(cd .. && pwd)"
 
 open /Applications/ClipShelf.app
 echo "✅ 完了。メニューバーのアイコンから「ログイン時に起動」をオンにしてください。"
+if [ -n "$NEED_TRUST" ]; then
+  echo ""
+  echo "⚠️  自動貼り付けの許可をやり直す必要があります。"
+  echo "   ⇧⌘X でパネルを出し、下に出る「許可の設定を開く」を押して、ClipShelf をオンにしてください。"
+  echo "   （毎回これが必要なのは、Apple ID で署名していないためです。sh mac-clipboard/scripts/setup-signing.sh で解消できます）"
+fi

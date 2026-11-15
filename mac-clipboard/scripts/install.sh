@@ -21,5 +21,8 @@ echo "▶ アプリケーションフォルダに入れます"
 rm -rf /Applications/ClipShelf.app
 cp -R build/Build/Products/Release/ClipShelf.app /Applications/
 
+# メニューの「最新版にアップデート…」がこのリポジトリの場所を分かるように記録する
+defaults write io.github.skmax3.clipshelf repoPath "$(cd .. && pwd)"
+
 open /Applications/ClipShelf.app
 echo "✅ 完了。メニューバーのアイコンから「ログイン時に起動」をオンにしてください。"

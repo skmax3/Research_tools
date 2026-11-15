@@ -306,7 +306,7 @@ async function poll(manual){
     const {items}=await r.json();let n=0;
     for(const it of items){
       after=Math.max(after,it.seq);
-      if(it.dev===DEVICE||seen.has(it.seq))continue;
+      if(it.dev.startsWith(DEVICE)||seen.has(it.seq))continue;   // 自分（iphone・iphone-quick）が送ったもの
       seen.add(it.seq);
       try{addInbox(it,await fetchOne(it));n++}catch(_){/* 鍵が違う・壊れているものは無視 */}
     }

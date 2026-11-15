@@ -1,0 +1,39 @@
+# 中継サーバー（clip-relay/）を Cloudflare Workers に自動で配置する。
+# GitHub の Secrets に CLOUDFLARE_API_TOKEN と CLOUDFLARE_ACCOUNT_ID が登録されていないときは、何もせず成功で終わる。
+name: clip-relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clip-relay/**'
+      - '.github/workflows/clip-relay.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Secrets の確認
+        id: check
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID が未登録のため、配置をスキップしました"
+          fi
+
+      - uses: actions/setup-node@v5
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: 22
+
+      - name: Cloudflare に配置
+        if: steps.check.outputs.ready == 'true'
+        working-directory: clip-relay
+        run: npx --yes wrangler@4 deploy

@@ -9,7 +9,7 @@
 | — | 写真寸法メモ | `photo-memo/` | 公開済み | 写真に矢印・寸法線・コメントを書き込む |
 | 1 | クリップボード（Mac 内部で使う版） | `clipboard/` | 公開済み | MVP。Mac（Chrome アプリ）で動作確認済み。Maccy（履歴）・Clipy（スニペット）と併用。Mac⇄iPhone 受け渡しは保留（調査結果は [`clipboard/SPEC.md`](clipboard/SPEC.md)） |
 | 1 | クリップ棚（Mac ネイティブ版クリップボード） | `mac-clipboard/` | 開発中 | ⌘C 自動記録、⇧⌘X で下からパネル、色ラベル・アプリ別絞り込み・複数選択して順番／まとめて貼り付け。動画対応、テキスト変換（⌘T: PDF 改行整理・表 → Markdown/LaTeX など）、メニューからアップデート。実機で動作確認済み（初版）。次: Handoff 代替の段階1 |
-| 1 | Macへ送る（iPhone → Mac の写真・テキスト送信。Handoff 代替） | `clip-send/` ＋ `clip-relay/` ＋ `mac-clipboard/` | 開発中 | Cloudflare の中継サーバーは配置済み。iPhone 側の Web アプリは完成。次: クリップ棚（Mac）側の受信・ペアリング |
+| 1 | Macへ送る（iPhone → Mac の写真・テキスト送信。Handoff 代替） | `clip-send/` ＋ `clip-relay/` ＋ `mac-clipboard/` | 開発中 | Cloudflare の中継サーバーは配置済み。iPhone 側の Web アプリは完成。クリップ棚（Mac）側の受信・送信・ペアリング画面も実装。実機での確認待ち |
 | 2 | PCスリープ中にスマホからフォルダ作業 | — | 方式検討中 | 下記「メモ」参照 |
 
 状態の目安: 案 → 仕様メモのみ → 開発中 → 公開済み

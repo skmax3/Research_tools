@@ -93,7 +93,11 @@ final class ClipStore: ObservableObject {
     }
 
     private var indexURL: URL { dir.appendingPathComponent("index.json") }
-    func imageURL(_ id: UUID) -> URL { dir.appendingPathComponent("images/\(id.uuidString).png") }
+    /// 画像の保存場所。iPhone から届いた写真は JPEG のまま（.jpg）、それ以外は PNG
+    func imageURL(_ id: UUID) -> URL {
+        let jpg = dir.appendingPathComponent("images/\(id.uuidString).jpg")
+        return FileManager.default.fileExists(atPath: jpg.path) ? jpg : dir.appendingPathComponent("images/\(id.uuidString).png")
+    }
     func thumbURL(_ id: UUID) -> URL { dir.appendingPathComponent("thumbs/\(id.uuidString).png") }
     func rtfURL(_ id: UUID) -> URL { dir.appendingPathComponent("rich/\(id.uuidString).rtf") }
 
@@ -113,7 +117,7 @@ final class ClipStore: ObservableObject {
     }
 
     /// 先頭に追加する。同じ内容がすでにあれば、新しく作らずに先頭へ移動する。
-    func add(_ item: ClipItem, image: Data? = nil, thumb: Data? = nil, rtf: Data? = nil) {
+    func add(_ item: ClipItem, image: Data? = nil, imageExt: String = "png", thumb: Data? = nil, rtf: Data? = nil) {
         if let i = items.firstIndex(where: { $0.kind == item.kind && $0.hash == item.hash }) {
             var old = items.remove(at: i)
             old.date = Date()
@@ -122,7 +126,7 @@ final class ClipStore: ObservableObject {
             save()
             return
         }
-        if let image { try? image.write(to: imageURL(item.id)) }
+        if let image { try? image.write(to: dir.appendingPathComponent("images/\(item.id.uuidString).\(imageExt)")) }
         if let thumb { try? thumb.write(to: thumbURL(item.id)) }
         if let rtf { try? rtf.write(to: rtfURL(item.id)) }
         items.insert(item, at: 0)
@@ -185,7 +189,8 @@ final class ClipStore: ObservableObject {
     }
 
     private func removeFiles(_ item: ClipItem) {
-        for url in [imageURL(item.id), thumbURL(item.id), rtfURL(item.id)] {
+        let jpg = dir.appendingPathComponent("images/\(item.id.uuidString).jpg")
+        for url in [imageURL(item.id), jpg, thumbURL(item.id), rtfURL(item.id)] {
             try? FileManager.default.removeItem(at: url)
         }
         ThumbCache.shared.remove(item.id)
@@ -201,6 +206,23 @@ enum ImageUtil {
     static func pngData(_ image: NSImage) -> Data? {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         return NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
+    }
+
+    /// 長い辺が maxSide 以下になるように縮小した JPEG（iPhone へ送る写真用）
+    static func jpegData(_ image: NSImage, maxSide: CGFloat, quality: CGFloat) -> Data? {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let w = CGFloat(cg.width), h = CGFloat(cg.height)
+        let scale = min(1, maxSide / max(w, h))
+        let nw = max(1, Int(w * scale)), nh = max(1, Int(h * scale))
+        guard let ctx = CGContext(data: nil, width: nw, height: nh, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))  // 透明な部分は白にする（JPEG は透明を持てない）
+        ctx.fill(CGRect(x: 0, y: 0, width: nw, height: nh))
+        ctx.interpolationQuality = .high
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: nw, height: nh))
+        guard let out = ctx.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: out).representation(using: .jpeg, properties: [.compressionFactor: quality])
     }
 
     /// 長い辺が maxSide 以下になるように縮小した PNG

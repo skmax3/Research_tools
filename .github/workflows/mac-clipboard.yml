@@ -29,10 +29,10 @@ jobs:
         working-directory: mac-clipboard
         run: xcodegen generate
 
-      - name: 変換機能のテスト
+      - name: テスト（テキスト変換・暗号）
         working-directory: mac-clipboard
         run: |
-          swiftc Sources/Transforms.swift Tests/main.swift -o /tmp/transforms-check
+          swiftc Sources/Transforms.swift Sources/SyncCrypto.swift Tests/main.swift -o /tmp/transforms-check
           /tmp/transforms-check
 
       - name: ビルド（署名なし）

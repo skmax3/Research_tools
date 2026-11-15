@@ -186,6 +186,9 @@ struct PanelView: View {
                                     }
                                 }
                                 Section {
+                                    Button("iPhone に送る") { actions.sendToPhone([item]) }
+                                }
+                                Section {
                                     Button(item.pinned ? "ピンを外す" : "ピン留め") { store.togglePin(item.id) }
                                     Button("削除", role: .destructive) { store.delete(item.id) }
                                 }
@@ -215,7 +218,7 @@ struct PanelView: View {
                 Button("許可の設定を開く") { actions.openTrust() }
                     .buttonStyle(.borderedProminent)
             } else if state.picked.isEmpty {
-                Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　⌘T・右クリック 変換　Tab 種類　⌘1〜9　⌘P ピン　⌘⌫ 削除　Esc")
+                Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　⌘T・右クリック 変換　⌘I iPhone へ　Tab 種類　⌘1〜9　⌘P ピン　⌘⌫ 削除　Esc")
                     .font(.system(size: 12))
                     .foregroundStyle(.primary.opacity(0.75))
                     .lineLimit(1)
@@ -228,6 +231,11 @@ struct PanelView: View {
                 .buttonStyle(.borderedProminent)
                 Button { actions.pastePicked(true) } label: {
                     Label("まとめて1回で貼り付け　⇧Enter", systemImage: "square.stack")
+                }
+                Button {
+                    actions.sendToPhone(state.picked.compactMap { id in store.items.first { $0.id == id } })
+                } label: {
+                    Label("iPhone に送る　⌘I", systemImage: "iphone")
                 }
                 Button { state.picked = [] } label: {
                     Label("選択を解除　Esc", systemImage: "xmark")

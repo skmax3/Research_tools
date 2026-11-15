@@ -25,6 +25,17 @@ Web 版（`clipboard/`）と違い、ネイティブアプリなのでバック�
 
 自動で貼り付けるには、初回に「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で ClipShelf を許可する。許可するまでは「コピーまで」で、⌘V は自分で押す。
 
+## iPhone との受け渡し（AirDrop の代わり）
+iPhone で撮った写真・スクショやテキストを、AirDrop なしで Mac に送る（Mac → iPhone も可）。どのネットワークでも使える。
+中継サーバー（`clip-relay/`、Cloudflare）には**端末側で暗号化したデータ**だけを置くので、サーバーは中身を読めない。24時間で自動的に消える。
+
+1. 初回: メニューバーのアイコン →「iPhone とペアリング…」→ 出てきた QR を iPhone のカメラで読み取る（秘密の鍵は QR の `#` 以降に入っていて、サーバーには送られない）
+2. iPhone: 開いたページ（`clip-send/`）で「写真・スクショを選んで送る」「テキストを入力して送る」。ホーム画面に追加すると使いやすい（Safari とは保存領域が別なので、ホーム画面のアプリでは、Mac の「ペアリングコードをコピー」で出るコードを最初の画面に貼り付ける）
+3. Mac: 届くとメニューバーのアイコンが変わり、パネルに「iPhone」のカードとして出る。ほかの履歴と同じように貼り付けられる（メニューの設定で、届いたらクリップボードにも入れることもできる）
+4. Mac → iPhone: カードを右クリック →「iPhone に送る」、または ⌘I（複数選択もできる）。iPhone のページの「Mac から届いたもの」に出る
+
+送れるのはテキストと画像（1件 8MB まで。大きい写真は自動で縮小）。動画は未対応。
+
 ## 自分の Mac でビルドして動かす
 1. GitHub Desktop でこのリポジトリを取得（更新は「Fetch origin → Pull origin」）
 2. 試すとき: `mac-clipboard/ClipShelf.xcodeproj` を Xcode で開いて ▶（Run）
@@ -51,3 +62,6 @@ Web 版（`clipboard/`）と違い、ネイティブアプリなのでバック�
   - `ClipStore.swift`: 保存
   - `PanelController.swift` / `PanelView.swift`: 下から出るパネル（SwiftUI）
   - `Paster.swift`: 貼り付け（CGEvent で ⌘V を送る）
+  - `SyncCrypto.swift`: iPhone との暗号（`clip-send/` と共通。固定の値で一致をテスト）
+  - `Sync.swift`: 中継サーバーとの送受信（WebSocket＋30秒ごとの確認）
+  - `PairingWindow.swift`: ペアリング画面（QR）

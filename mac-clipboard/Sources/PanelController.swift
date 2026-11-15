@@ -48,21 +48,26 @@ struct PanelActions {
     var pastePicked: (_ together: Bool) -> Void
     var transform: (ClipItem, TextTransform) -> Void
     var openTrust: () -> Void
+    var sendToPhone: ([ClipItem]) -> Void
 }
 
 /// 画面の下からせり上がる履歴パネル
 final class PanelController: NSObject, NSWindowDelegate {
     private let store: ClipStore
     private let paster: Paster
+    private let sync: SyncManager
+    private let onNeedPairing: () -> Void
     private let state = PanelState()
     private var panel: KeyPanel!
     private var visible = false
     private let panelHeight: CGFloat = 364
     private var askedTrust = false
 
-    init(store: ClipStore, paster: Paster) {
+    init(store: ClipStore, paster: Paster, sync: SyncManager, onNeedPairing: @escaping () -> Void) {
         self.store = store
         self.paster = paster
+        self.sync = sync
+        self.onNeedPairing = onNeedPairing
         super.init()
         build()
     }
@@ -97,7 +102,8 @@ final class PanelController: NSObject, NSWindowDelegate {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
                 }
-            }
+            },
+            sendToPhone: { [weak self] items in self?.sendToPhone(items) }
         )
         let host = NSHostingView(rootView: PanelView(store: store, state: state, actions: actions))
         host.frame = effect.bounds
@@ -200,6 +206,18 @@ final class PanelController: NSObject, NSWindowDelegate {
             guard let self, self.canAutoPaste() else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
         }
+    }
+
+    /// iPhone へ送る。まだペアリングしていなければ、ペアリング画面を開く
+    private func sendToPhone(_ items: [ClipItem]) {
+        guard !items.isEmpty else { return }
+        guard sync.paired else {
+            hide { [weak self] in self?.onNeedPairing() }
+            return
+        }
+        state.picked = []
+        sync.send(items)
+        hide()
     }
 
     /// ⌘T で出す変換メニュー
@@ -322,6 +340,12 @@ final class PanelController: NSObject, NSWindowDelegate {
             return true
         case 17 where cmd:  // ⌘T 変換メニュー
             if let cur { showTransformMenu(for: cur) }
+            return true
+        case 34 where cmd:  // ⌘I iPhone へ送る（複数選択中は選んだものを全部）
+            let list = state.picked.isEmpty
+                ? (cur.map { [$0] } ?? [])
+                : state.picked.compactMap { id in store.items.first { $0.id == id } }
+            sendToPhone(list)
             return true
         case 35 where cmd:  // ⌘P ピン留め
             if let cur { store.togglePin(cur.id) }

@@ -19,6 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var watcher: PasteboardWatcher!
     private var paster: Paster!
     private var panel: PanelController!
+    private var sync: SyncManager!
+    private var pairing: PairingWindowController!
+    private var flashToken = 0
     private var statusItem: NSStatusItem!
     private var hotKey: HotKey?
 
@@ -26,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let autoPasteItem = NSMenuItem(title: "選んだら自動で貼り付け", action: #selector(AppDelegate.toggleAutoPaste), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "記録を一時停止", action: #selector(AppDelegate.togglePause), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
+    private let pairItem = NSMenuItem(title: "iPhone とペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
     private let trustItem = NSMenuItem(title: "自動貼り付けを許可する（アクセシビリティ）…", action: #selector(AppDelegate.openAccessibility), keyEquivalent: "")
 
@@ -41,8 +45,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         watcher = PasteboardWatcher(store: store)
         watcher.start()
         paster = Paster(store: store, watcher: watcher)
-        panel = PanelController(store: store, paster: paster)
+        sync = SyncManager(store: store, paster: paster)
+        pairing = PairingWindowController(sync: sync)
+        sync.onReceived = { [weak self] count in
+            self?.flashStatus(symbol: "tray.and.arrow.down.fill", title: " iPhone から\(count)件", seconds: 4)
+            NSSound(named: "Tink")?.play()
+        }
+        sync.onSent = { [weak self] ok, message in
+            self?.flashStatus(symbol: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                              title: ok ? " 送信しました" : " \(message)", seconds: ok ? 3 : 6)
+        }
+        panel = PanelController(store: store, paster: paster, sync: sync) { [weak self] in self?.pairing.show() }
         setupStatusItem()
+        sync.start()
 
         // ⇧⌘X でパネルを出す（Carbon のホットキー。アクセシビリティの許可は不要）
         registerHotKey(retry: true)
@@ -82,6 +97,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(loginItem)
         menu.addItem(trustItem)
         menu.addItem(.separator())
+        menu.addItem(pairItem)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "保存フォルダを開く", action: #selector(openFolder), keyEquivalent: ""))
         menu.addItem(updateItem)
         menu.addItem(NSMenuItem(title: "ピン留め以外の履歴を消去…", action: #selector(clearHistory), keyEquivalent: ""))
@@ -96,10 +113,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pauseItem.state = watcher.paused ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         updateItem.isHidden = Self.updateScript == nil
+        pairItem.title = sync.paired ? "iPhone との接続…" : "iPhone とペアリング…"
+        pairItem.state = sync.paired && sync.connected ? .on : .off
         trustItem.title = Paster.trusted ? "自動貼り付け: 許可済み" : "自動貼り付けを許可する（アクセシビリティ）…"
     }
 
     @objc private func openPanel() { panel.show() }
+
+    @objc private func openPairing() { pairing.show() }
+
+    /// メニューバーのアイコンを一時的に変えて、届いた・送ったことを知らせる
+    private func flashStatus(symbol: String, title: String, seconds: Double) {
+        guard let button = statusItem.button else { return }
+        flashToken += 1
+        let token = flashToken
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        image?.isTemplate = true
+        button.image = image
+        button.title = title
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, self.flashToken == token, let b = self.statusItem.button else { return }
+            let normal = NSImage(systemSymbolName: "list.clipboard", accessibilityDescription: "クリップ棚")
+            normal?.isTemplate = true
+            b.image = normal
+            b.title = ""
+        }
+    }
 
     @objc private func toggleAutoPaste() { Settings.autoPaste.toggle() }
 
@@ -166,5 +205,11 @@ enum Settings {
     static var autoPaste: Bool {
         get { UserDefaults.standard.object(forKey: "autoPaste") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "autoPaste") }
+    }
+
+    /// iPhone から届いたものを、Mac のクリップボードにも入れる
+    static var syncAutoCopy: Bool {
+        get { UserDefaults.standard.object(forKey: "syncAutoCopy") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "syncAutoCopy") }
     }
 }

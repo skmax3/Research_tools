@@ -25,7 +25,9 @@ final class Paster {
             pb.setString(item.text, forType: .string)
         case .image:
             guard let data = try? Data(contentsOf: store.imageURL(item.id)) else { return false }
-            pb.setData(data, forType: .png)
+            // JPEG（iPhone の写真）はそのまま JPEG として入れる。PNG と偽らない
+            let isJPEG = data.starts(with: [0xFF, 0xD8])
+            pb.setData(data, forType: isJPEG ? NSPasteboard.PasteboardType("public.jpeg") : .png)
             if let tiff = NSImage(data: data)?.tiffRepresentation { pb.setData(tiff, forType: .tiff) }  // 古いアプリ向け
         case .files:
             let urls = item.paths.map { URL(fileURLWithPath: $0) as NSURL }

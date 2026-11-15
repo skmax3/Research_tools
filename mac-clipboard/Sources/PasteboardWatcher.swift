@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import UniformTypeIdentifiers
 
 /// クリップボードを 0.5 秒ごとに確認し、変わっていたら履歴に追加する。
 /// macOS にはクリップボードの変更通知がないため、changeCount（変更回数）を見張るのが定番のやり方。
@@ -45,7 +47,9 @@ final class PasteboardWatcher {
     private func capture() {
         guard let types = pb.types, !types.isEmpty else { return }
         if types.contains(where: { ignoredTypes.contains($0.rawValue) }) { return }
-        let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? ""
+        let front = NSWorkspace.shared.frontmostApplication
+        let app = front?.localizedName ?? ""
+        let appID = front?.bundleIdentifier ?? ""
 
         // 1) Finder などでコピーしたファイル
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
@@ -54,6 +58,7 @@ final class PasteboardWatcher {
             item.paths = urls.map(\.path)
             item.text = urls.map(\.lastPathComponent).joined(separator: "\n")
             item.app = app
+            item.appID = appID
             item.hash = ClipStore.hash(Data(item.paths.joined(separator: "\n").utf8))
             var thumb: Data?
             if urls.count == 1, let img = NSImage(contentsOf: urls[0]) {  // HEIC も macOS が読める
@@ -61,6 +66,13 @@ final class PasteboardWatcher {
                 (item.width, item.height) = ImageUtil.pixelSize(img)
             }
             store.add(item, thumb: thumb)
+            if urls.count == 1, UTType(filenameExtension: urls[0].pathExtension)?.conforms(to: .movie) == true {
+                let id = item.id, url = urls[0]
+                Task { @MainActor [weak self] in
+                    let info = await VideoInfo.load(url)
+                    self?.store.updateMedia(id, thumb: info.thumb, width: info.width, height: info.height, duration: info.duration)
+                }
+            }
             return
         }
 
@@ -72,6 +84,7 @@ final class PasteboardWatcher {
             var item = ClipItem(kind: .image)
             (item.width, item.height) = ImageUtil.pixelSize(img)
             item.app = app
+            item.appID = appID
             item.hash = ClipStore.hash(png)
             store.add(item, image: png, thumb: ImageUtil.thumbnail(img, maxSide: 360))
             return
@@ -82,6 +95,7 @@ final class PasteboardWatcher {
         var item = ClipItem(kind: .text)
         item.text = text
         item.app = app
+        item.appID = appID
         item.hash = ClipStore.hash(Data(text.utf8))
         let rtf = pb.data(forType: .rtf)
         item.hasRTF = rtf != nil
@@ -92,5 +106,35 @@ final class PasteboardWatcher {
         if let data = pb.data(forType: .png) ?? pb.data(forType: .tiff), let img = NSImage(data: data) { return img }
         if NSImage.canInit(with: pb) { return NSImage(pasteboard: pb) }  // PDF など
         return nil
+    }
+}
+
+/// 動画のサムネイル（1秒目の画面）・大きさ・長さを読む
+enum VideoInfo {
+    struct Result {
+        var thumb: Data?
+        var width = 0
+        var height = 0
+        var duration: Double = 0
+    }
+
+    static func load(_ url: URL) async -> Result {
+        var r = Result()
+        let asset = AVURLAsset(url: url)
+        if let d = try? await asset.load(.duration) { r.duration = d.seconds.isFinite ? d.seconds : 0 }
+        if let track = try? await asset.loadTracks(withMediaType: .video).first,
+           let loaded = try? await track.load(.naturalSize, .preferredTransform) {
+            let s = loaded.0.applying(loaded.1)  // 縦向きの動画は回転を考慮
+            r.width = Int(abs(s.width))
+            r.height = Int(abs(s.height))
+        }
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: 720, height: 720)
+        let at = CMTime(seconds: min(1, r.duration / 2), preferredTimescale: 600)
+        if let frame = try? await gen.image(at: at) {
+            r.thumb = NSBitmapImageRep(cgImage: frame.image).representation(using: .png, properties: [:])
+        }
+        return r
     }
 }

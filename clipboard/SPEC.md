@@ -46,8 +46,8 @@
 - 画像の簡単な処理（縮小、写真寸法メモへ送る）
 - 古い項目の自動削除設定
 
-## 保留: Mac⇄iPhone の受け渡し（調査済み・未実装）
-2026-11 時点の調査結果。必要になったらここから再開する。
+## Mac⇄iPhone の受け渡し
+Web 版（この `clipboard/`）では行わない。Mac のクリップ棚（`mac-clipboard/`）と iPhone 用の Web アプリ（`clip-send/`）、中継サーバー（`clip-relay/`）で実現している。方針は ROADMAP を参照。下は2026-11 時点の調査結果（採用した内容を含む）。
 - **中継サーバー**: Cloudflare Workers ＋ Durable Objects（無料プラン可。1日10万リクエスト）を採用予定。
   - Supabase は無料プロジェクトが1週間使わないと停止するため不採用。
   - Cloudflare KV は反映に最大60秒かかるため不採用。

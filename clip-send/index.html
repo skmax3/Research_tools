@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Macへ送る">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Macへ送る</title>
+<style>
+:root{--bg:#f2f2f5;--panel:#fff;--ink:#1c1c1e;--muted:#6e6e73;--line:#d9d9de;--accent:#0a84ff;--chip:#f0f0f3;--ok:#1f9d55;--danger:#ff3b30}
+@media (prefers-color-scheme:dark){:root{--bg:#16181d;--panel:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--chip:#2a2d34;--ok:#3ccf7a}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+main{max-width:560px;margin:0 auto}
+[hidden]{display:none!important}
+header{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+h1{font-size:20px;margin:0;flex:1}
+h2{font-size:14px;color:var(--muted);margin:22px 0 8px;display:flex;align-items:center;gap:8px}
+h2 span{flex:1}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.pill.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+.card p{margin:0 0 10px}
+button,label.big{font:inherit;color:inherit;border:0;cursor:pointer}
+.big{display:flex;align-items:center;gap:12px;width:100%;padding:16px;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;margin-bottom:10px}
+.big.alt{background:var(--panel);color:var(--ink);border:1px solid var(--line);font-weight:500}
+.big svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.btn{padding:9px 14px;border-radius:10px;background:var(--chip);font-size:14px}
+.btn.primary{background:var(--accent);color:#fff;font-weight:600}
+.btn.danger{color:var(--danger)}
+textarea{width:100%;min-height:120px;font:16px/1.5 inherit;font-family:inherit;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:center}
+li .body{flex:1;min-width:0}
+li .t{white-space:pre-wrap;word-break:break-all;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;font-size:15px}
+li .m{font-size:12px;color:var(--muted)}
+li img{width:72px;height:72px;object-fit:cover;border-radius:10px;background:var(--chip);flex:none}
+li .st{font-size:13px;font-weight:700;white-space:nowrap}
+li .st.ok{color:var(--ok)}li .st.ng{color:var(--danger)}li .st.wait{color:var(--muted)}
+.empty{color:var(--muted);font-size:14px;padding:6px 2px}
+.help{font-size:13.5px;color:var(--muted);line-height:1.7}
+.help b{color:var(--ink)}
+details{margin-top:22px}
+summary{color:var(--muted);font-size:14px;cursor:pointer}
+code{font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px;word-break:break-all}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(28,28,30,.94);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Macへ送る</h1><span class="pill" id="state"></span></header>
+
+  <!-- ペアリング前 -->
+  <section id="pair" hidden>
+    <div class="card">
+      <p><b>最初に Mac とペアリングします（1回だけ）</b></p>
+      <p class="help">
+        1. Mac の<b>クリップ棚</b>のメニューバーアイコン →「<b>iPhone とペアリング…</b>」を開く<br>
+        2. 出てきた <b>QR を iPhone のカメラで読み取る</b>（このページが開きます）<br>
+        ホーム画面に追加したアプリで使う場合は、Mac のウィンドウの「コードをコピー」を押して、下の欄に貼り付けてください。
+      </p>
+      <textarea id="code" placeholder="ここにペアリングコードを貼り付け" style="min-height:70px"></textarea>
+      <div class="row"><button class="btn primary" id="bPair">ペアリング</button></div>
+    </div>
+    <p class="help" style="margin-top:14px">写真や文章は、この端末で暗号化してから送ります。中継サーバーは鍵を持たないので、中身は読めません。</p>
+  </section>
+
+  <!-- ペアリング後 -->
+  <section id="main" hidden>
+    <input type="file" id="photos" accept="image/*" multiple hidden>
+    <label class="big" for="photos">
+      <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      写真・スクショを選んで送る
+    </label>
+    <button class="big alt" id="bText">
+      <svg viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>
+      テキストを入力して送る
+    </button>
+    <button class="big alt" id="bClip">
+      <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg>
+      コピーしたテキストを送る
+    </button>
+
+    <div class="card" id="composer" hidden>
+      <textarea id="txt" placeholder="Mac に送るテキスト"></textarea>
+      <div class="row"><button class="btn primary" id="bTextSend">送る</button><button class="btn" id="bTextCancel">やめる</button></div>
+    </div>
+
+    <h2><span>送ったもの</span></h2>
+    <ul id="sent"></ul>
+    <p class="empty" id="sentEmpty">まだ何も送っていません。</p>
+
+    <h2><span>Mac から届いたもの（24時間で消えます）</span><button class="btn" id="bRefresh">更新</button></h2>
+    <ul id="inbox"></ul>
+    <p class="empty" id="inboxEmpty">Mac のクリップ棚で、カードを右クリック →「iPhone に送る」で、ここに届きます。</p>
+
+    <details>
+      <summary>設定</summary>
+      <div class="card" style="margin-top:10px">
+        <p class="help">ホーム画面に追加したアプリは、Safari とは保存場所が別です。アプリで使うときは、ここで「コードをコピー」して、アプリ側の最初の画面に貼り付けてください。</p>
+        <div class="row">
+          <button class="btn" id="bCopyCode">ペアリングコードをコピー</button>
+          <button class="btn danger" id="bUnpair">ペアリングを解除</button>
+        </div>
+      </div>
+    </details>
+  </section>
+</main>
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+
+/* SYNC-BEGIN */
+/* 暗号の取り決め（Mac のクリップ棚と共通。mac-clipboard/Sources/SyncCrypto.swift と同じ結果になること）
+   秘密 K（32バイト）→ HKDF-SHA256（salt="clipshelf-v1"）で
+     部屋ID   = HKDF(info="clipshelf-v1 room", 16バイト) の base64url（22文字）
+     暗号鍵   = HKDF(info="clipshelf-v1 enc", 32バイト) を AES-256-GCM に使う
+   送るデータ = [0x01][nonce 12バイト][AES-GCM(暗号文＋タグ16バイト, 追加認証データ="clipshelf-v1")]
+   暗号化する中身 = [メタ情報の長さ 4バイト（ビッグエンディアン）][メタ情報 JSON][本体] */
+const Sync=(()=>{
+  const enc=new TextEncoder(),dec=new TextDecoder(),TAG='clipshelf-v1';
+  const b64u=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+    return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+  const unb64=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s),u=new Uint8Array(b.length);
+    for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u};
+  const newSecret=()=>b64u(crypto.getRandomValues(new Uint8Array(32)));
+  async function derive(secret){
+    const raw=unb64(secret);if(raw.length!==32)throw new Error('秘密の長さが正しくありません');
+    const base=await crypto.subtle.importKey('raw',raw,'HKDF',false,['deriveBits']);
+    const bits=async(info,n)=>new Uint8Array(await crypto.subtle.deriveBits(
+      {name:'HKDF',hash:'SHA-256',salt:enc.encode(TAG),info:enc.encode(TAG+' '+info)},base,n*8));
+    const room=b64u(await bits('room',16));
+    const key=await crypto.subtle.importKey('raw',await bits('enc',32),'AES-GCM',false,['encrypt','decrypt']);
+    return {room,key};
+  }
+  async function seal(key,meta,body,nonce){
+    const m=typeof meta==='string'?enc.encode(meta):enc.encode(JSON.stringify(meta));
+    const pt=new Uint8Array(4+m.length+body.length);
+    new DataView(pt.buffer).setUint32(0,m.length);pt.set(m,4);pt.set(body,4+m.length);
+    nonce=nonce||crypto.getRandomValues(new Uint8Array(12));
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce,additionalData:enc.encode(TAG),tagLength:128},key,pt));
+    const out=new Uint8Array(13+ct.length);out[0]=1;out.set(nonce,1);out.set(ct,13);return out;
+  }
+  async function open(key,data){
+    if(data[0]!==1)throw new Error('未対応の形式');
+    const pt=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:data.slice(1,13),additionalData:enc.encode(TAG),tagLength:128},key,data.slice(13)));
+    const n=new DataView(pt.buffer).getUint32(0);
+    return {meta:JSON.parse(dec.decode(pt.slice(4,4+n))),body:pt.slice(4+n)};
+  }
+  return {derive,seal,open,newSecret,b64u,unb64};
+})();
+/* SYNC-END */
+
+/* ---------- 設定の保存（Safari の保存領域。使えないときは画面を開いている間だけ） ---------- */
+const mem={};
+const LS={
+  get(k){try{return localStorage.getItem('clipsend.'+k)}catch(_){return mem[k]??null}},
+  set(k,v){try{localStorage.setItem('clipsend.'+k,v)}catch(_){mem[k]=v}},
+  del(k){try{localStorage.removeItem('clipsend.'+k)}catch(_){delete mem[k]}},
+};
+const DEFAULT_RELAY='https://fwr-clip.fwrtools.workers.dev';
+const DEVICE='iphone';
+const MAX_SEND=7.5*1024*1024;   // 中継サーバーの上限（8MB）に余裕を持たせる
+let cfg=null,keys=null;
+
+function parsePair(text){
+  let t=String(text||'').trim();const h=t.indexOf('#');if(h>=0)t=t.slice(h+1);t=t.replace(/^[?#]/,'');
+  const p=new URLSearchParams(t);let k=p.get('k');
+  if(!k&&/^[A-Za-z0-9_-]{43}$/.test(t))k=t;
+  if(!k||!/^[A-Za-z0-9_-]{43}$/.test(k))return null;
+  let s=(p.get('s')||DEFAULT_RELAY).trim();if(!/^https?:\/\//.test(s))s='https://'+s;
+  return {k,s:s.replace(/\/+$/,'')};
+}
+const pairString=()=>`k=${cfg.k}&s=${encodeURIComponent(cfg.s)}`;
+
+let toastT=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+const fmtSize=b=>b<1024?b+' B':b<1048576?Math.round(b/1024)+' KB':(b/1048576).toFixed(1)+' MB';
+const hhmm=d=>`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+/* ---------- ペアリング ---------- */
+async function setup(c){
+  try{keys=await Sync.derive(c.k)}catch(_){toast('コードが正しくありません');return false}
+  cfg=c;LS.set('k',c.k);LS.set('s',c.s);return true;
+}
+function show(){
+  $('#pair').hidden=!!cfg;$('#main').hidden=!cfg;
+  const s=$('#state');s.textContent=cfg?'ペアリング済み':'未ペアリング';s.className='pill'+(cfg?' ok':'');
+}
+
+/* ---------- 送信 ---------- */
+async function sendItem(meta,body){
+  const sealed=await Sync.seal(keys.key,meta,body);
+  const r=await fetch(`${cfg.s}/r/${keys.room}/items`,{method:'POST',body:sealed,headers:{'x-device':DEVICE}});
+  if(!r.ok)throw new Error(r.status===413?'大きすぎます':'送信に失敗しました（'+r.status+'）');
+  return r.json();
+}
+function addSent(label,sub,thumb){
+  $('#sentEmpty').hidden=true;
+  const li=document.createElement('li');
+  li.innerHTML='<div class="body"><div class="t"></div><div class="m"></div></div><span class="st wait">送信中…</span>';
+  li.querySelector('.t').textContent=label;li.querySelector('.m').textContent=sub;
+  if(thumb){const im=document.createElement('img');im.src=thumb;im.alt='';li.prepend(im)}
+  $('#sent').prepend(li);
+  return {
+    ok(){const s=li.querySelector('.st');s.className='st ok';s.textContent='✓ '+hhmm(new Date())},
+    ng(m){const s=li.querySelector('.st');s.className='st ng';s.textContent=m},
+    meta(text){li.querySelector('.m').textContent=text},
+    thumb(url){if(li.querySelector('img'))return;const im=document.createElement('img');im.src=url;im.alt='';li.prepend(im)},
+  };
+}
+
+/* 画像を送れる大きさ・形式にする（HEIC などは JPEG に。大きすぎれば小さくする） */
+const isSendable=f=>/^image\/(jpeg|png|gif|webp)$/.test(f.type);
+async function decodeImage(file){
+  const u=URL.createObjectURL(file);
+  try{const im=new Image();im.src=u;await im.decode();return im}
+  catch(_){if(window.createImageBitmap)return await createImageBitmap(file);throw new Error('画像を読み込めません')}
+  finally{setTimeout(()=>URL.revokeObjectURL(u),30000)}
+}
+async function prepareImage(file){
+  const base=(file.name||'写真').replace(/\.[^.]+$/,'');
+  if(isSendable(file)&&file.size<=MAX_SEND){
+    const ext={ 'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp' }[file.type];
+    return {blob:file,name:base+'.'+ext,mime:file.type};
+  }
+  const im=await decodeImage(file);
+  const w0=im.naturalWidth||im.width,h0=im.naturalHeight||im.height;
+  let scale=Math.min(1,Math.sqrt(12e6/(w0*h0)));   // iPhone の描画の上限（約1677万画素）に余裕を持たせる
+  for(let i=0;i<6;i++){
+    const c=document.createElement('canvas');c.width=Math.round(w0*scale);c.height=Math.round(h0*scale);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
+    const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',.9));
+    if(blob&&blob.size<=MAX_SEND)return {blob,name:base+'.jpg',mime:'image/jpeg'};
+    scale*=.8;
+  }
+  throw new Error('大きすぎて送れません');
+}
+async function sendPhotos(files){
+  for(const f of files){
+    const row=addSent(f.name||'写真','準備中…');
+    try{
+      const p=await prepareImage(f);
+      const body=new Uint8Array(await p.blob.arrayBuffer());
+      row.thumb(URL.createObjectURL(p.blob));row.meta(fmtSize(body.length));
+      await sendItem({k:'image',name:p.name,mime:p.mime},body);
+      row.ok();
+    }catch(e){row.ng(e.message||'失敗')}
+  }
+}
+async function sendText(text){
+  if(!text.trim()){toast('テキストが空です');return}
+  const body=new TextEncoder().encode(text);
+  const row=addSent(text,`テキスト・${text.length}文字`);
+  try{await sendItem({k:'text',name:'',mime:'text/plain'},body);row.ok()}catch(e){row.ng(e.message||'失敗')}
+}
+
+/* ---------- 受信（Mac → iPhone） ---------- */
+let after=0,polling=false;const seen=new Set();
+async function fetchOne(item){
+  let data;
+  if(item.data!==undefined)data=Sync.unb64(item.data);
+  else{const r=await fetch(`${cfg.s}/r/${keys.room}/items/${item.seq}`);if(!r.ok)throw new Error('取得に失敗');data=new Uint8Array(await r.arrayBuffer())}
+  return Sync.open(keys.key,data);
+}
+async function poll(manual){
+  if(!cfg||polling)return;polling=true;
+  try{
+    const r=await fetch(`${cfg.s}/r/${keys.room}/items?after=${after}`);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const {items}=await r.json();let n=0;
+    for(const it of items){
+      after=Math.max(after,it.seq);
+      if(it.dev===DEVICE||seen.has(it.seq))continue;
+      seen.add(it.seq);
+      try{addInbox(it,await fetchOne(it));n++}catch(_){/* 鍵が違う・壊れているものは無視 */}
+    }
+    if(manual)toast(n?`${n}件届きました`:'新しいものはありません');
+  }catch(e){if(manual)toast('更新できませんでした')}
+  finally{polling=false}
+}
+const toPngBlob=async blob=>{const im=await decodeImage(blob),c=document.createElement('canvas');c.width=im.naturalWidth||im.width;c.height=im.naturalHeight||im.height;
+  c.getContext('2d').drawImage(im,0,0);return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('png')),'image/png'))};
+function addInbox(it,{meta,body}){
+  $('#inboxEmpty').hidden=true;
+  const li=document.createElement('li');li.innerHTML='<div class="body"><div class="t"></div><div class="m"></div></div>';
+  const t=li.querySelector('.t'),m=li.querySelector('.m'),when=hhmm(new Date(it.t));
+  const act=document.createElement('div');act.style.cssText='display:flex;flex-direction:column;gap:6px';
+  const mk=(label,fn)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=fn;act.append(b);return b};
+  if(meta.k==='text'){
+    const text=new TextDecoder().decode(body);t.textContent=text;m.textContent=`テキスト・${when}`;
+    mk('コピー',async()=>{try{await navigator.clipboard.writeText(text);toast('コピーしました')}catch(_){toast('コピーできませんでした')}});
+  }else{
+    const blob=new Blob([body],{type:meta.mime||'image/jpeg'}),url=URL.createObjectURL(blob);
+    const im=document.createElement('img');im.src=url;im.alt='';li.prepend(im);
+    t.textContent=meta.name||'画像';m.textContent=`${fmtSize(body.length)}・${when}`;
+    mk('コピー',async()=>{try{await navigator.clipboard.write([new ClipboardItem({'image/png':meta.mime==='image/png'?blob:toPngBlob(blob)})]);toast('コピーしました')}catch(_){toast('コピーできませんでした。「保存」を使ってください')}});
+    mk('保存',async()=>{const f=new File([blob],meta.name||'image.jpg',{type:blob.type});
+      try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}}catch(e){if(e&&e.name==='AbortError')return}
+      const a=document.createElement('a');a.href=url;a.download=f.name;a.click()});
+  }
+  li.append(act);$('#inbox').prepend(li);
+}
+
+/* ---------- 画面の操作 ---------- */
+$('#bPair').onclick=async()=>{const c=parsePair($('#code').value);if(!c){toast('コードが正しくありません');return}
+  if(await setup(c)){show();poll(false)}};
+$('#photos').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)sendPhotos(fs)};
+$('#bText').onclick=()=>{$('#composer').hidden=false;$('#txt').focus()};
+$('#bTextCancel').onclick=()=>{$('#composer').hidden=true;$('#txt').value=''};
+$('#bTextSend').onclick=()=>{const v=$('#txt').value;$('#composer').hidden=true;$('#txt').value='';sendText(v)};
+$('#bClip').onclick=async()=>{
+  try{const t=await navigator.clipboard.readText();if(!t){toast('クリップボードにテキストがありません');return}sendText(t)}
+  catch(_){toast('読み取れませんでした。「テキストを入力して送る」に貼り付けてください')}
+};
+$('#bRefresh').onclick=()=>poll(true);
+$('#bCopyCode').onclick=async()=>{try{await navigator.clipboard.writeText(pairString());toast('コピーしました')}catch(_){toast('コピーできませんでした')}};
+$('#bUnpair').onclick=()=>{if(!confirm('ペアリングを解除しますか？（もう一度 Mac の QR を読み取れば再開できます）'))return;
+  LS.del('k');LS.del('s');cfg=keys=null;after=0;seen.clear();$('#sent').innerHTML='';$('#inbox').innerHTML='';
+  $('#sentEmpty').hidden=$('#inboxEmpty').hidden=false;show()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll(false)});
+setInterval(()=>{if(!document.hidden)poll(false)},10000);
+
+/* ---------- 起動 ---------- */
+/* QR（アドレスの # 以降に秘密が入っている）で開かれたら、自動でペアリングする。
+   すでにこのページを開いている場合は # 以降だけが変わるので、hashchange でも処理する */
+async function pairFromHash(){
+  const fromUrl=parsePair(location.hash);if(!fromUrl)return false;
+  history.replaceState(null,'',location.pathname+location.search);   // 秘密をアドレス欄・履歴に残さない
+  const done=await setup(fromUrl);
+  if(done){toast('ペアリングしました');after=0;seen.clear();$('#inbox').innerHTML='';$('#inboxEmpty').hidden=false}
+  show();if(done)poll(false);
+  return done;
+}
+window.addEventListener('hashchange',pairFromHash);
+(async()=>{
+  if(!(await pairFromHash())){
+    const k=LS.get('k'),s=LS.get('s');
+    if(k)await setup({k,s:s||DEFAULT_RELAY});
+    show();poll(false);
+  }
+})();
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

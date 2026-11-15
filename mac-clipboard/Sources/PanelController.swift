@@ -44,6 +44,7 @@ final class PanelState: ObservableObject {
 struct PanelActions {
     var paste: (ClipItem) -> Void
     var pastePicked: (_ together: Bool) -> Void
+    var transform: (ClipItem, TextTransform) -> Void
 }
 
 /// 画面の下からせり上がる履歴パネル
@@ -86,7 +87,8 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         let actions = PanelActions(
             paste: { [weak self] item in self?.pasteOne(item, plain: false) },
-            pastePicked: { [weak self] together in self?.pastePicked(together: together) }
+            pastePicked: { [weak self] together in self?.pastePicked(together: together) },
+            transform: { [weak self] item, t in self?.transform(item, t) }
         )
         let host = NSHostingView(rootView: PanelView(store: store, state: state, actions: actions))
         host.frame = effect.bounds
@@ -170,6 +172,48 @@ final class PanelController: NSObject, NSWindowDelegate {
             // パネルが消えて元のアプリにキー入力が戻るのを少し待ってから ⌘V
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
         }
+    }
+
+    /// テキストを変換して貼り付ける。変換結果は履歴にも新しい項目として残す
+    private func transform(_ item: ClipItem, _ t: TextTransform) {
+        guard item.kind == .text else { NSSound.beep(); return }
+        let out = t.apply(item.text)
+        guard !out.isEmpty else { NSSound.beep(); return }
+        paster.copyText(out)
+        var new = ClipItem(kind: .text)
+        new.text = out
+        new.app = "クリップ棚"
+        new.appID = Bundle.main.bundleIdentifier ?? ""
+        new.hash = ClipStore.hash(Data(out.utf8))
+        store.add(new)
+        hide { [weak self] in
+            guard let self, self.canAutoPaste() else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
+        }
+    }
+
+    /// ⌘T で出す変換メニュー
+    private var menuItem: ClipItem?
+
+    private func showTransformMenu(for item: ClipItem) {
+        guard item.kind == .text, let view = panel.contentView else { NSSound.beep(); return }
+        menuItem = item
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem.sectionHeader(title: "変換して貼り付け"))
+        for t in TextTransform.allCases {
+            if t == .markdown { menu.addItem(.separator()) }
+            let mi = NSMenuItem(title: t.title, action: #selector(transformPicked(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = t.rawValue
+            menu.addItem(mi)
+        }
+        menu.popUp(positioning: nil, at: NSPoint(x: 24, y: view.bounds.height - 44), in: view)
+    }
+
+    @objc private func transformPicked(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let t = TextTransform(rawValue: raw),
+              let item = menuItem else { return }
+        transform(item, t)
     }
 
     /// 複数選択した項目を貼る。together=true なら1回にまとめる（種類が混ざっていたら順番に）
@@ -265,6 +309,9 @@ final class PanelController: NSObject, NSWindowDelegate {
                 state.picked.removeAll { $0 == cur.id }
                 state.selected = min(state.selected, max(0, items.count - 2))
             }
+            return true
+        case 17 where cmd:  // ⌘T 変換メニュー
+            if let cur { showTransformMenu(for: cur) }
             return true
         case 35 where cmd:  // ⌘P ピン留め
             if let cur { store.togglePin(cur.id) }

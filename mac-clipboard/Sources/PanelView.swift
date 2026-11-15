@@ -172,6 +172,24 @@ struct PanelView: View {
                                 }
                             }
                             .onDrag { dragProvider(item) }
+                            .contextMenu {
+                                if item.kind == .text {
+                                    Section("変換して貼り付け") {
+                                        ForEach(TextTransform.allCases.filter { !$0.isTable }) { t in
+                                            Button(t.title) { actions.transform(item, t) }
+                                        }
+                                    }
+                                    Section {
+                                        ForEach(TextTransform.allCases.filter { $0.isTable }) { t in
+                                            Button(t.title) { actions.transform(item, t) }
+                                        }
+                                    }
+                                }
+                                Section {
+                                    Button(item.pinned ? "ピンを外す" : "ピン留め") { store.togglePin(item.id) }
+                                    Button("削除", role: .destructive) { store.delete(item.id) }
+                                }
+                            }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -190,7 +208,7 @@ struct PanelView: View {
     private var footer: some View {
         HStack(spacing: 10) {
             if state.picked.isEmpty {
-                Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　Tab 種類　⌘1〜9 番号で貼る　⌘P ピン　⌘⌫ 削除　Esc 閉じる")
+                Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　⌘T・右クリック 変換　Tab 種類　⌘1〜9　⌘P ピン　⌘⌫ 削除　Esc")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

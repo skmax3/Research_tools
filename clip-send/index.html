@@ -44,6 +44,9 @@ li .m{font-size:12px;color:var(--muted)}
 li img{width:72px;height:72px;object-fit:cover;border-radius:10px;background:var(--chip);flex:none}
 li .st{font-size:13px;font-weight:700;white-space:nowrap}
 li .st.ok{color:var(--ok)}li .st.ng{color:var(--danger)}li .st.wait{color:var(--muted)}
+.seg{display:flex;align-items:center;gap:6px;margin:-2px 2px 12px;font-size:13px;color:var(--muted)}
+.seg button{padding:5px 12px;border-radius:99px;background:var(--chip);font-size:13px;color:var(--ink)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
 .empty{color:var(--muted);font-size:14px;padding:6px 2px}
 .help{font-size:13.5px;color:var(--muted);line-height:1.7}
 .help b{color:var(--ink)}
@@ -79,6 +82,11 @@ code{font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px;wor
       <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
       写真・スクショを選んで送る
     </label>
+    <div class="seg" id="sizeSeg" role="group" aria-label="写真のサイズ">
+      <span>サイズ</span>
+      <button data-m="fast">標準（速い）</button>
+      <button data-m="orig">元のまま</button>
+    </div>
     <button class="big alt" id="bText">
       <svg viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>
       テキストを入力して送る
@@ -227,15 +235,23 @@ async function decodeImage(file){
   catch(_){if(window.createImageBitmap)return await createImageBitmap(file);throw new Error('画像を読み込めません')}
   finally{setTimeout(()=>URL.revokeObjectURL(u),30000)}
 }
+/* サイズの設定。「標準」は長辺2560px の JPEG にして軽くする（貼り付けや共有には十分で、送信が数倍速い）。
+   「元のまま」は、形式・大きさをなるべく変えない（大きすぎるときだけ縮小） */
+const MAX_EDGE=2560,QUICK=400*1024;   // 400KB 以下の小さい画像は、標準でもそのまま送る
+let sizeMode=LS.get('size')==='orig'?'orig':'fast';
+function showSizeMode(){document.querySelectorAll('#sizeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===sizeMode))}
+document.querySelectorAll('#sizeSeg button').forEach(b=>b.onclick=()=>{sizeMode=b.dataset.m;LS.set('size',sizeMode);showSizeMode()});
+showSizeMode();
+
 async function prepareImage(file){
   const base=(file.name||'写真').replace(/\.[^.]+$/,'');
-  if(isSendable(file)&&file.size<=MAX_SEND){
-    const ext={ 'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp' }[file.type];
-    return {blob:file,name:base+'.'+ext,mime:file.type};
-  }
+  const ext={ 'image/jpeg':'jpg','image/png':'png','image/gif':'gif','image/webp':'webp' }[file.type];
+  const asIs=isSendable(file)&&file.size<=MAX_SEND&&(sizeMode==='orig'||file.size<=QUICK||/^image\/(gif|webp)$/.test(file.type));
+  if(asIs)return {blob:file,name:base+'.'+ext,mime:file.type};
   const im=await decodeImage(file);
   const w0=im.naturalWidth||im.width,h0=im.naturalHeight||im.height;
-  let scale=Math.min(1,Math.sqrt(12e6/(w0*h0)));   // iPhone の描画の上限（約1677万画素）に余裕を持たせる
+  // iPhone の描画の上限（約1677万画素）に余裕を持たせる。標準は長辺も制限する
+  let scale=Math.min(1,Math.sqrt(12e6/(w0*h0)),sizeMode==='fast'?MAX_EDGE/Math.max(w0,h0):1);
   for(let i=0;i<6;i++){
     const c=document.createElement('canvas');c.width=Math.round(w0*scale);c.height=Math.round(h0*scale);
     const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
@@ -245,17 +261,27 @@ async function prepareImage(file){
   }
   throw new Error('大きすぎて送れません');
 }
+/* n 件ずつ同時に処理する（順番に1枚ずつより、複数枚が速い） */
+async function runPool(list,n,fn){
+  let i=0;
+  await Promise.all(Array.from({length:Math.min(n,list.length)},async()=>{while(i<list.length){const k=i++;await fn(list[k],k)}}));
+}
 async function sendPhotos(files){
-  for(const f of files){
-    const row=addSent(f.name||'写真','準備中…');
+  const rows=[];
+  for(const f of [...files].reverse())rows.unshift(addSent(f.name||'写真','待っています…'));   // 先に選んだものが上に並ぶ
+  await runPool(files,3,async(f,k)=>{
+    const row=rows[k];
     try{
+      row.meta('変換中…');
       const p=await prepareImage(f);
       const body=new Uint8Array(await p.blob.arrayBuffer());
-      row.thumb(URL.createObjectURL(p.blob));row.meta(fmtSize(body.length));
+      row.thumb(URL.createObjectURL(p.blob));row.meta(fmtSize(body.length)+'・送信中…');
+      const t0=performance.now();
       await sendItem({k:'image',name:p.name,mime:p.mime},body);
+      row.meta(fmtSize(body.length)+'・'+((performance.now()-t0)/1000).toFixed(1)+'秒');
       row.ok();
     }catch(e){row.ng(e.message||'失敗')}
-  }
+  });
 }
 async function sendText(text){
   if(!text.trim()){toast('テキストが空です');return}

@@ -83,6 +83,27 @@ enum SyncCrypto {
         guard data.count > 1 + 12 + 16, data[data.startIndex] == 1 else { throw Failure.badFormat }
         let box = try AES.GCM.SealedBox(combined: Data(data.dropFirst()))
         let plain = try AES.GCM.open(box, using: keys.key, authenticating: tag)
+        return try parse(plain)
+    }
+
+    /// 高速モード（iPhone のショートカットから直接送られ、サーバーが Mac の公開鍵で暗号化したもの）を開く。
+    ///   [0x02][使い捨ての公開鍵 65バイト][nonce 12バイト][暗号文＋タグ]
+    ///   ECDH P-256 → HKDF-SHA256（salt = "clipshelf-v1", info = "clipshelf-v1 quick"）→ AES-256-GCM
+    /// サーバー側の作り方は clip-relay/src/quick.js
+    static func openQuick(_ privateKey: P256.KeyAgreement.PrivateKey, _ data: Data) throws -> Opened {
+        guard data.count > 1 + 65 + 12 + 16, data[data.startIndex] == 2 else { throw Failure.badFormat }
+        let rest = Data(data.dropFirst())  // 先頭の 0x02 を除き、添字を 0 から始める
+        let ephemeral = try P256.KeyAgreement.PublicKey(x963Representation: rest.prefix(65))
+        let shared = try privateKey.sharedSecretFromKeyAgreement(with: ephemeral)
+        let key = shared.hkdfDerivedSymmetricKey(using: SHA256.self, salt: tag,
+                                                 sharedInfo: Data("clipshelf-v1 quick".utf8), outputByteCount: 32)
+        let box = try AES.GCM.SealedBox(combined: rest.dropFirst(65))
+        let plain = try AES.GCM.open(box, using: key, authenticating: tag)
+        return try parse(plain)
+    }
+
+    /// [メタ情報の長さ 4バイト][メタ情報 JSON][本体] を分ける
+    private static func parse(_ plain: Data) throws -> Opened {
         guard plain.count >= 4 else { throw Failure.badFormat }
         let n = Int(plain[0]) << 24 | Int(plain[1]) << 16 | Int(plain[2]) << 8 | Int(plain[3])
         guard 4 + n <= plain.count,

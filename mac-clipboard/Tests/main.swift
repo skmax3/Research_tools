@@ -92,5 +92,37 @@ do {
     print("FAIL sync: 予期しないエラー \(error)")
 }
 
+// MARK: - 高速モード（ショートカットから直接送り、サーバーが Mac の公開鍵で暗号化する）
+// 固定の値は clip-relay/test/quick.mjs --swift が出力したもの（サーバーのコードが作った暗号文）
+let quickPrivateHex = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+let quickPublicHex = "04515c3d6eb9e396b904d3feca7f54fdcd0cc1e997bf375dca515ad0a6c3b4035f4536be3a50f318fbf9a5475902a221502bef0d57e08c53b2cc0a56f17d9f9354"
+let quickBody = "ショートカット, quick!"
+let quickSealedHex = "02045142f48a7c80caf47544a428fc57d272a6c678ad5e93ffcba36666a99639e51dd1bdb6fb598144567a2657e8ff3619fbaa0cd2a040c19ab22af910c705a757ba32333435363738393a3b3c3dafe2cdb9a9657b9efb6f60e5d0be037c5a235c218b07897ef820877373b1c402aa78749039c8e032ffd4057a61316f031e1579d2b31fc6b42a4c544403be5582d43be73117746ed28afef4306d031f17d75de7fc475332a76b2fdb"
+
+do {
+    let priv = try P256.KeyAgreement.PrivateKey(rawRepresentation: fromHex(quickPrivateHex))
+    check("quick: 公開鍵（x963）の形式が一致", hex(priv.publicKey.x963Representation), quickPublicHex)
+    let opened = try SyncCrypto.openQuick(priv, fromHex(quickSealedHex))
+    check("quick: サーバーが作った暗号文を復号（本体）", String(data: opened.body, encoding: .utf8) ?? "", quickBody)
+    check("quick: 復号（種類）", opened.meta["k"] as? String ?? "", "text")
+
+    var bad = fromHex(quickSealedHex)
+    bad[bad.count - 1] ^= 1
+    var rejected = false
+    do { _ = try SyncCrypto.openQuick(priv, bad) } catch { rejected = true }
+    check("quick: 改ざんは復号できない", String(rejected), "true")
+
+    rejected = false
+    do { _ = try SyncCrypto.openQuick(P256.KeyAgreement.PrivateKey(), fromHex(quickSealedHex)) } catch { rejected = true }
+    check("quick: 別の Mac の鍵では復号できない", String(rejected), "true")
+
+    rejected = false
+    do { _ = try SyncCrypto.openQuick(priv, Data([2, 1, 2, 3])) } catch { rejected = true }
+    check("quick: 短すぎるデータは拒否", String(rejected), "true")
+} catch {
+    failed += 1
+    print("FAIL quick: 予期しないエラー \(error)")
+}
+
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")

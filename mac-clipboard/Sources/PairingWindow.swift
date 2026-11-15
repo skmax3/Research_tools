@@ -48,6 +48,7 @@ struct PairingView: View {
     @ObservedObject var sync: SyncManager
     @State private var copied = false
     @State private var confirmReset = false
+    @State private var quickCopied = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -75,6 +76,53 @@ struct PairingView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                     }
                     Text("ホーム画面に追加したアプリで使うときは、このコードを iPhone の最初の画面に貼り付けます（メモや自分宛てのメッセージなどで iPhone に送れます）。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+
+            if let quick = sync.quickURL {
+                Divider()
+                VStack(spacing: 6) {
+                    Text("ショートカットで1タップ送信（iPhone → Mac）").font(.headline)
+                    Text("ブラウザを開かずに、背面タップなどで、コピーしたテキスト・画像をそのまま送れます。")
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                    Text(quick)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.center)
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Button(quickCopied ? "コピーしました" : "ショートカット用のアドレスをコピー") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(quick, forType: .string)
+                        quickCopied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { quickCopied = false }
+                    }
+                    DisclosureGroup("ショートカットの作り方") {
+                        Text("""
+                        1. iPhone の「ショートカット」アプリで ＋ から新規作成
+                        2. アクション「クリップボードを取得」を追加
+                        3. アクション「URLの内容を取得」を追加し、URL にコピーしたアドレスを貼り付ける
+                        4. 「URLの内容を取得」の ＞ を開き、方法を「POST」、リクエスト本文を「ファイル」にして、ファイルに「クリップボード」を選ぶ
+                        5. 名前を「Macへ送る」にして完了
+                        6. 設定 → アクセシビリティ → タッチ → 背面タップ → ダブルタップ →「Macへ送る」
+                        """)
+                        .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                    }
+                    .font(.callout)
+                    if sync.quickProblem {
+                        Text("⚠️ この部屋では高速モードの鍵を登録できませんでした。下の「ペアリングを解除」で、やり直してください。")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    Text("注意: この方法だけは、サーバーのプログラムが受け取った内容を、保存する直前に Mac 専用の鍵で暗号化します（保存されるのは暗号文で、Mac だけが読めます。通信は HTTPS）。このアドレスは人に見せないでください。機密は送らない運用をおすすめします。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

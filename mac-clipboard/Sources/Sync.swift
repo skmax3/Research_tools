@@ -12,6 +12,8 @@ final class SyncManager: ObservableObject {
     @Published private(set) var paired = false
     /// 中継サーバーと通信できているか
     @Published private(set) var connected = false
+    /// 高速モード用の鍵を登録できなかった（別の鍵が先に登録されている）。ペアリングのやり直しが必要
+    @Published private(set) var quickProblem = false
 
     /// iPhone から新しく届いたとき（件数）
     var onReceived: ((Int) -> Void)?
@@ -22,6 +24,8 @@ final class SyncManager: ObservableObject {
     private let paster: Paster
     private var secret: String?
     private var keys: SyncCrypto.Keys?
+    /// 高速モード用の秘密鍵。公開鍵だけをサーバーに登録し、秘密鍵はこの Mac の外に出さない
+    private var quickKey: P256.KeyAgreement.PrivateKey?
     private var relay = SyncManager.defaultRelay
     private var polling = false
     private var ws: URLSessionWebSocketTask?
@@ -46,6 +50,13 @@ final class SyncManager: ObservableObject {
         secret = s
         keys = k
         relay = UserDefaults.standard.string(forKey: "relayURL") ?? obj["relay"] ?? Self.defaultRelay
+        if let q = obj["quick"], let raw = Data(base64Encoded: q),
+           let key = try? P256.KeyAgreement.PrivateKey(rawRepresentation: raw) {
+            quickKey = key
+        } else {
+            quickKey = P256.KeyAgreement.PrivateKey()  // 高速モードの追加前にペアリングした場合は、ここで作る
+            saveConfig()
+        }
         paired = true
     }
 
@@ -54,7 +65,8 @@ final class SyncManager: ObservableObject {
             try? FileManager.default.removeItem(at: configURL)
             return
         }
-        let obj = ["secret": secret, "relay": relay]
+        var obj = ["secret": secret, "relay": relay]
+        if let quickKey { obj["quick"] = quickKey.rawRepresentation.base64EncodedString() }
         guard let data = try? JSONSerialization.data(withJSONObject: obj) else { return }
         try? data.write(to: configURL, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
@@ -74,6 +86,11 @@ final class SyncManager: ObservableObject {
         return "\(Self.pairPage)#k=\(secret)&s=\(s)"
     }
 
+    /// 高速モードの送信先。iPhone の「ショートカット」に貼り付ける。部屋ID を含むので、人に見せない
+    var quickURL: String? {
+        keys.map { "\(relay)/r/\($0.room)/quick" }
+    }
+
     /// 秘密がなければ作る（ペアリング画面を開いたとき）
     func ensurePairing() {
         guard secret == nil else { return }
@@ -81,6 +98,7 @@ final class SyncManager: ObservableObject {
         guard let k = try? SyncCrypto.derive(secret: s) else { return }
         secret = s
         keys = k
+        quickKey = P256.KeyAgreement.PrivateKey()
         lastSeq = 0
         saveConfig()
         paired = true
@@ -93,6 +111,8 @@ final class SyncManager: ObservableObject {
         stop()
         secret = nil
         keys = nil
+        quickKey = nil
+        quickProblem = false
         lastSeq = 0
         saveConfig()
         paired = false
@@ -104,6 +124,7 @@ final class SyncManager: ObservableObject {
     func start() {
         guard keys != nil, !started else { return }
         started = true
+        registerQuickKey()
         connect()
         poll()
         // WebSocket が切れていても届くように、30秒ごとにも確認する
@@ -113,6 +134,19 @@ final class SyncManager: ObservableObject {
         })
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+    }
+
+    /// 高速モード用の公開鍵をサーバーに登録する（1回だけ登録でき、別の鍵での上書きはできない）
+    private func registerQuickKey() {
+        guard let keys, let quickKey else { return }
+        request("/r/\(keys.room)/pub", method: "PUT", body: quickKey.publicKey.x963Representation) { [weak self] result in
+            guard let self, case .success(let r) = result else { return }
+            switch r.status {
+            case 200, 201: self.quickProblem = false
+            case 409: self.quickProblem = true
+            default: break
+            }
+        }
     }
 
     private func stop() {
@@ -253,7 +287,7 @@ final class SyncManager: ObservableObject {
         let finish: (Data) -> Void = { [weak self] blob in
             guard let self else { return }
             self.advance(to: it.seq)
-            if let opened = try? SyncCrypto.open(keys, blob), self.accept(opened) { next(1) } else { next(0) }
+            if let opened = self.decrypt(blob), self.accept(opened) { next(1) } else { next(0) }
         }
         if let inline = it.inline {
             finish(inline)
@@ -271,6 +305,16 @@ final class SyncManager: ObservableObject {
                 }
             }
         }
+    }
+
+    /// 先頭の1バイトで方式を見分ける（1: 端末で暗号化、2: 高速モード）
+    private func decrypt(_ blob: Data) -> SyncCrypto.Opened? {
+        guard let keys, let version = blob.first else { return nil }
+        if version == 2 {
+            guard let quickKey else { return nil }
+            return try? SyncCrypto.openQuick(quickKey, blob)
+        }
+        return try? SyncCrypto.open(keys, blob)
     }
 
     private func advance(to seq: Int) {
@@ -294,15 +338,24 @@ final class SyncManager: ObservableObject {
             guard let img = NSImage(data: body) else { return false }
             let isJPEG = body.starts(with: [0xFF, 0xD8])
             let isPNG = body.starts(with: [0x89, 0x50, 0x4E, 0x47])
-            // JPEG・PNG はそのまま保存する（写真を PNG にすると大きくなりすぎる）。それ以外は PNG にする
-            let data = (isJPEG || isPNG) ? body : (ImageUtil.pngData(img) ?? body)
+            // JPEG・PNG はそのまま保存する（写真を PNG にすると大きくなりすぎる）。HEIC などは JPEG にする
+            var data = body
+            var ext = isJPEG ? "jpg" : "png"
+            if !isJPEG && !isPNG {
+                if let jpg = ImageUtil.jpegData(img, maxSide: 4096, quality: 0.9) {
+                    data = jpg
+                    ext = "jpg"
+                } else if let png = ImageUtil.pngData(img) {
+                    data = png
+                }
+            }
             var item = ClipItem(kind: .image)
             (item.width, item.height) = ImageUtil.pixelSize(img)
             item.text = opened.meta["name"] as? String ?? ""
             item.app = "iPhone"
             item.appID = "ios"
             item.hash = ClipStore.hash(body)
-            store.add(item, image: data, imageExt: isJPEG ? "jpg" : "png", thumb: ImageUtil.thumbnail(img, maxSide: 360))
+            store.add(item, image: data, imageExt: ext, thumb: ImageUtil.thumbnail(img, maxSide: 360))
             return true
         default:
             return false

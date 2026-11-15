@@ -9,23 +9,29 @@
 /* Begin PBXBuildFile section */
 		0F112CEB6C064CA1CE2BB6AA /* HotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */; };
 		2789AF4E2E9CA467D0C6FBBC /* PasteboardWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */; };
+		2D3147616E2AEAC6DF2DDC52 /* Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0221C3630A551599FE0BA736 /* Sync.swift */; };
 		38AADA7EC6E88320F7DF944A /* Transforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */; };
+		758C452A88150E4D7DE55C12 /* PairingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */; };
 		7D9B8E4E4E53EFDA24563543 /* ClipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B2FB36873685A6E4DEDD4D /* ClipStore.swift */; };
 		82F2BBC5918C2932783C596B /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330D7915932665C16E89969 /* PanelController.swift */; };
 		98F76A186FA610470E7D6AF1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF9F8C49893A48B3DBF44D30 /* Assets.xcassets */; };
 		A78C0F5B791E58A2B691E503 /* Paster.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA53AAEAF11A9172F9C350D /* Paster.swift */; };
+		B24879B5A07579EE14F93E30 /* SyncCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34882FD041000B693386239 /* SyncCrypto.swift */; };
 		C3613FADD8D8FB8193B765EB /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F972112E56A76BF7E2E7F5E /* App.swift */; };
 		DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4A671A69D6B43EB7E287C6 /* PanelView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		01B2FB36873685A6E4DEDD4D /* ClipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipStore.swift; sourceTree = "<group>"; };
+		0221C3630A551599FE0BA736 /* Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.swift; sourceTree = "<group>"; };
 		05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardWatcher.swift; sourceTree = "<group>"; };
 		1330D7915932665C16E89969 /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		1F972112E56A76BF7E2E7F5E /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		6448BE6D5317ECFF35A318F9 /* ClipShelf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipShelf.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		790567B2D8E715E343626452 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transforms.swift; sourceTree = "<group>"; };
+		A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingWindow.swift; sourceTree = "<group>"; };
+		A34882FD041000B693386239 /* SyncCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCrypto.swift; sourceTree = "<group>"; };
 		ACA53AAEAF11A9172F9C350D /* Paster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paster.swift; sourceTree = "<group>"; };
 		C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKey.swift; sourceTree = "<group>"; };
 		DF9F8C49893A48B3DBF44D30 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -39,10 +45,13 @@
 				1F972112E56A76BF7E2E7F5E /* App.swift */,
 				01B2FB36873685A6E4DEDD4D /* ClipStore.swift */,
 				C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */,
+				A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */,
 				1330D7915932665C16E89969 /* PanelController.swift */,
 				EC4A671A69D6B43EB7E287C6 /* PanelView.swift */,
 				05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */,
 				ACA53AAEAF11A9172F9C350D /* Paster.swift */,
+				0221C3630A551599FE0BA736 /* Sync.swift */,
+				A34882FD041000B693386239 /* SyncCrypto.swift */,
 				7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */,
 			);
 			path = Sources;
@@ -156,10 +165,13 @@
 				C3613FADD8D8FB8193B765EB /* App.swift in Sources */,
 				7D9B8E4E4E53EFDA24563543 /* ClipStore.swift in Sources */,
 				0F112CEB6C064CA1CE2BB6AA /* HotKey.swift in Sources */,
+				758C452A88150E4D7DE55C12 /* PairingWindow.swift in Sources */,
 				82F2BBC5918C2932783C596B /* PanelController.swift in Sources */,
 				DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */,
 				2789AF4E2E9CA467D0C6FBBC /* PasteboardWatcher.swift in Sources */,
 				A78C0F5B791E58A2B691E503 /* Paster.swift in Sources */,
+				2D3147616E2AEAC6DF2DDC52 /* Sync.swift in Sources */,
+				B24879B5A07579EE14F93E30 /* SyncCrypto.swift in Sources */,
 				38AADA7EC6E88320F7DF944A /* Transforms.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

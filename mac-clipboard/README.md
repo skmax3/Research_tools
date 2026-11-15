@@ -31,7 +31,8 @@ Web 版（`clipboard/`）と違い、ネイティブアプリなのでバック�
    ```
    sh mac-clipboard/scripts/install.sh
    ```
-4. ビルドし直してもアクセシビリティの許可が外れないようにする（1回だけ）
+4. 2回目以降の更新: メニューバーのアイコン →「最新版にアップデート…」を押すだけ（ターミナルが開き、取得 → ビルド → 入れ替えまで自動で行う）
+5. ビルドし直してもアクセシビリティの許可が外れないようにする（1回だけ）
    1. Xcode の Settings → Apple Accounts で Apple ID を追加
    2. Manage Certificates… → ＋ → Apple Development
    3. 次を実行する

@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let autoPasteItem = NSMenuItem(title: "選んだら自動で貼り付け", action: #selector(AppDelegate.toggleAutoPaste), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "記録を一時停止", action: #selector(AppDelegate.togglePause), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
+    private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
     private let trustItem = NSMenuItem(title: "自動貼り付けを許可する（アクセシビリティ）…", action: #selector(AppDelegate.openAccessibility), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -82,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(trustItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "保存フォルダを開く", action: #selector(openFolder), keyEquivalent: ""))
+        menu.addItem(updateItem)
         menu.addItem(NSMenuItem(title: "ピン留め以外の履歴を消去…", action: #selector(clearHistory), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "クリップ棚を終了", action: #selector(quit), keyEquivalent: "q"))
@@ -93,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         autoPasteItem.state = Settings.autoPaste ? .on : .off
         pauseItem.state = watcher.paused ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        updateItem.isHidden = Self.updateScript == nil
         trustItem.title = Paster.trusted ? "自動貼り付け: 許可済み" : "自動貼り付けを許可する（アクセシビリティ）…"
     }
 
@@ -123,6 +126,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openFolder() { NSWorkspace.shared.open(store.dir) }
+
+    /// install.sh が記録したリポジトリの場所にある update.command
+    private static var updateScript: URL? {
+        guard let repo = UserDefaults.standard.string(forKey: "repoPath") else { return nil }
+        let url = URL(fileURLWithPath: repo).appendingPathComponent("mac-clipboard/scripts/update.command")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// .command ファイルを開くとターミナルで実行される（取得 → ビルド → 入れ替え → 再起動）
+    @objc private func update() {
+        guard let url = Self.updateScript else { return }
+        NSWorkspace.shared.open(url)
+    }
 
     @objc private func clearHistory() {
         NSApp.activate()

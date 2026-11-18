@@ -422,38 +422,85 @@ final class WindowMover {
         var fullScreen = false
     }
 
-    /// プリセットどおりに並べる
+    /// プリセットどおりに並べる。デスクトップの指定があれば、先に切り替えてから
     func apply(_ preset: Preset) {
+        guard preset.desktop > 0 else { applyNow(preset, desktopOnly: false); return }
+        guard Desktops.switchTo(preset.desktop) else {
+            alert("デスクトップ \(preset.desktop) へ切り替えられませんでした",
+                  "システム設定 → キーボード → キーボードショートカット… → Mission Control で、"
+                  + "「デスクトップ \(preset.desktop) へ切り替え」をオンにしてください。\n"
+                  + "デスクトップが \(preset.desktop) 個ない場合は、Mission Control（F3）の右上の「＋」で増やします。")
+            return
+        }
+        // 切り替えのアニメーションが終わってから、そのデスクトップのウィンドウを探す
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            self?.applyNow(preset, desktopOnly: true)
+        }
+    }
+
+    /// desktopOnly: 今のデスクトップに見えているウィンドウだけを使う（ほかのデスクトップのウィンドウを使うと、
+    /// macOS がそちらへ切り替えてしまうため）。ウィンドウがここにない起動中のアプリは飛ばす
+    private func applyNow(_ preset: Preset, desktopOnly: Bool) {
         guard let area = Self.area(for: preset.screen) else { return }
+        let map = desktopOnly ? Desktops.windowMap().onScreen : [:]
         // 同じアプリが何行かあるときは、そのアプリのウィンドウを上から順に割り当てる
         var count: [String: Int] = [:]
         var items: [ArrangeItem] = []
+        var skipped: [String] = []
         for s in preset.slots {
             let k = count[s.bundleID, default: 0]
             count[s.bundleID, default: 0] += 1
-            let wins = NSRunningApplication.runningApplications(withBundleIdentifier: s.bundleID)
-                .flatMap { Self.windowsMainFirst(pid: $0.processIdentifier) }
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: s.bundleID)
+            var wins = running.flatMap { Self.windowsMainFirst(pid: $0.processIdentifier) }
+            if desktopOnly { wins = wins.filter { Desktops.isOnCurrentDesktop($0, onScreen: map) } }
             if k < wins.count {
                 items.append(ArrangeItem(window: wins[k], bundleID: s.bundleID, zone: s.zone, fullScreen: s.fullScreen))
-            } else if s.launch {
+            } else if s.launch && (!desktopOnly || running.isEmpty) {
                 items.append(ArrangeItem(window: nil, bundleID: s.bundleID, zone: s.zone, fullScreen: s.fullScreen))
+            } else if desktopOnly && !running.isEmpty {
+                skipped.append(s.appName)
             }
         }
-        if preset.hideOthers {
-            let keep = Set(preset.slots.map(\.bundleID))
-            for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular
-                && !keep.contains(app.bundleIdentifier ?? "") && app != NSRunningApplication.current {
+        if items.isEmpty {
+            onMoved?(skipped.isEmpty ? "並べるウィンドウがありません" : "このデスクトップにありません：\(skipped.joined(separator: "・"))", area)
+            return
+        }
+        arrange(items, area: area, name: skipped.isEmpty ? preset.name : "\(preset.name)（なし：\(skipped.joined(separator: "・"))）",
+                hideOthers: preset.hideOthers)
+    }
+
+    /// 並べるアプリ（keep）以外で、並べる画面（area）の今のデスクトップだけにウィンドウがあるアプリを隠す。
+    /// 隠す（⌘H）はアプリ全体にかかるので、ほかの画面・ほかのデスクトップにもウィンドウがあるアプリは隠さない
+    func hideOthers(keep: Set<String>, area: CGRect) {
+        let infos = Self.screenInfos()
+        guard let target = infos.firstIndex(where: { $0.area == area }) else { return }
+        let frames = infos.map(\.frame)
+        let map = Desktops.windowMap()
+        for app in NSWorkspace.shared.runningApplications
+        where app.activationPolicy == .regular && !app.isHidden && app != NSRunningApplication.current
+            && !keep.contains(app.bundleIdentifier ?? "") {
+            let pid = app.processIdentifier
+            let minimized = Self.windows(pid: pid).filter(Self.isMinimized).count
+            if HideRule.shouldHide(onScreen: map.onScreen[pid] ?? [], screens: frames, target: target,
+                                   offScreen: map.offScreen[pid] ?? 0, minimized: minimized) {
                 app.hide()
             }
         }
-        arrange(items, area: area, name: preset.name)
+    }
+
+    /// 隠れているアプリを全部表示する（メニュー）
+    static func unhideAll() {
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.isHidden {
+            app.unhide()
+        }
     }
 
     /// まとめて並べる。後ろの行から 1 つずつ並べて手前に出すので、最後に 1 行目がいちばん手前になる。
     /// フルスクリーンの解除・アプリの起動を待つことがあるので、1 つ終わってから次へ進む
-    func arrange(_ items: [ArrangeItem], area: CGRect, name: String) {
+    func arrange(_ items: [ArrangeItem], area: CGRect, name: String, hideOthers: Bool = false) {
         lastSnap = nil
         guard !items.isEmpty else { NSSound.beep(); return }
+        if hideOthers { self.hideOthers(keep: Set(items.map(\.bundleID)), area: area) }
         let apps = Set(items.map { $0.window.map { "pid:\(Self.pid(of: $0))" } ?? $0.bundleID })
         whenStageManagerOff(appCount: apps.count) { [weak self] in
             self?.arrangeNow(items, area: area, name: name)

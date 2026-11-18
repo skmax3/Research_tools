@@ -322,3 +322,18 @@ extension Fit {
         choices.first { $0.width + 1 >= minWidth }?.name
     }
 }
+
+// MARK: - ほかのアプリを隠すか
+
+/// 並べたときに「ほかのアプリを隠す」の判定。隠す（⌘H）はアプリ全体にかかるので、
+/// ほかの画面・ほかのデスクトップにウィンドウがあるアプリは隠さない（そちらで使っているかもしれないため）
+enum HideRule {
+    /// - onScreen: 今のデスクトップに見えているウィンドウの枠
+    /// - screens / target: 画面の一覧と、並べている画面の番号
+    /// - offScreen: 見えていないウィンドウの数（ほかのデスクトップ・しまってある）、minimized: しまってある数
+    static func shouldHide(onScreen: [CGRect], screens: [CGRect], target: Int, offScreen: Int, minimized: Int) -> Bool {
+        guard !onScreen.isEmpty, !screens.isEmpty else { return false }  // ここに見えていないアプリはそのまま
+        guard offScreen <= minimized else { return false }                // ほかのデスクトップにもウィンドウがある
+        return onScreen.allSatisfy { Geometry.bestScreenIndex(for: $0, screens: screens) == target }
+    }
+}

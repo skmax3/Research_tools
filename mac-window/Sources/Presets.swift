@@ -60,15 +60,18 @@ struct Preset: Codable, Identifiable, Hashable {
     var screen: ScreenTarget = .largest
     /// プリセットにないアプリを隠す（集中したいとき）
     var hideOthers = false
+    /// 並べる前に切り替えるデスクトップ（1〜9）。0 なら今のデスクトップのまま
+    var desktop = 0
 
-    init(name: String, slots: [Slot], screen: ScreenTarget = .largest, hideOthers: Bool = false) {
+    init(name: String, slots: [Slot], screen: ScreenTarget = .largest, hideOthers: Bool = false, desktop: Int = 0) {
         self.name = name
         self.slots = slots
         self.screen = screen
         self.hideOthers = hideOthers
+        self.desktop = desktop
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, slots, screen, hideOthers }
+    enum CodingKeys: String, CodingKey { case id, name, slots, screen, hideOthers, desktop }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -76,6 +79,7 @@ struct Preset: Codable, Identifiable, Hashable {
         slots = try c.decodeIfPresent([Slot].self, forKey: .slots) ?? []
         screen = (try? c.decodeIfPresent(ScreenTarget.self, forKey: .screen)) ?? .largest
         hideOthers = try c.decodeIfPresent(Bool.self, forKey: .hideOthers) ?? false
+        desktop = try c.decodeIfPresent(Int.self, forKey: .desktop) ?? 0
     }
 
     /// 初めて起動したときのプリセット（設定画面で自由に変えられる）

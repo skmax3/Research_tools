@@ -285,6 +285,15 @@ struct PresetEditor: View {
                 .frame(width: 360)
                 Toggle("ほかのアプリを隠す（集中したいとき）", isOn: $preset.hideOthers)
             }
+            HStack(spacing: 12) {
+                Picker("並べるデスクトップ", selection: $preset.desktop) {
+                    Text("今のデスクトップ").tag(0)
+                    ForEach(1...9, id: \.self) { Text("デスクトップ \($0)").tag($0) }
+                }
+                .frame(width: 300)
+                Text("切り替えてから並べます。そのデスクトップにないアプリは飛ばします（使えるようにする手順は README）。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             GridSelector(cols: 12, rows: 6, highlight: selectedZone, highlightLabel: selectedLabel, others: otherZones,
                          onCommit: { z in setZone(z) })

@@ -238,5 +238,10 @@ do {
     check("古いプリセット desktop", p?.desktop == 0 && p?.hideOthers == true)
 }
 
+// この画面を整理（手前 3 個を残す。4 番目の C はほかのデスクトップにもあるので隠さない）
+check("整理 隠す", TidyRule.toHide(order: ["A", "B", "X", "C", "D", "E"], hideable: ["A", "B", "X", "D", "E"], keep: 3) == ["D", "E"])
+check("整理 少ない", TidyRule.toHide(order: ["A", "B"], hideable: ["A", "B"], keep: 3).isEmpty)
+check("整理 最低 1 個は残す", TidyRule.toHide(order: ["A", "B"], hideable: ["A", "B"], keep: 0) == ["B"])
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

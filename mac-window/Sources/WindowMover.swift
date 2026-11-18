@@ -488,6 +488,48 @@ final class WindowMover {
         }
     }
 
+    /// この画面を整理：マウスのある画面の今のデスクトップで、手前から settings.tidyKeep 個のアプリだけ残し、ほかを隠す。
+    /// 手前のアプリ（いま使っているもの）は必ず残す。ほかの画面・デスクトップにもウィンドウがあるアプリは隠さない
+    func tidy() {
+        let infos = Self.screenInfos()
+        let mouse = NSEvent.mouseLocation
+        guard let target = NSScreen.screens.firstIndex(where: { NSMouseInRect(mouse, $0.frame, false) }),
+              target < infos.count else { return }
+        let frames = infos.map(\.frame)
+        let me = ProcessInfo.processInfo.processIdentifier
+        let regular = Set(NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != me }
+            .map(\.processIdentifier))
+        // その画面に見えているアプリを、手前から順に（CGWindowList は手前から並ぶ）
+        let map = Desktops.windowMap()
+        var order: [pid_t] = []
+        // いま使っているアプリは、この画面にあれば必ず残す
+        if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier, regular.contains(front),
+           (map.onScreen[front] ?? []).contains(where: { Geometry.bestScreenIndex(for: $0, screens: frames) == target }) {
+            order.append(front)
+        }
+        if let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] {
+            for w in info {
+                guard (w[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                      let pid = (w[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, regular.contains(pid),
+                      !order.contains(pid),
+                      let b = w[kCGWindowBounds as String] as? NSDictionary,
+                      let r = CGRect(dictionaryRepresentation: b as CFDictionary), r.width > 100, r.height > 100,
+                      Geometry.bestScreenIndex(for: r, screens: frames) == target else { continue }
+                order.append(pid)
+            }
+        }
+        let hideable = Set(order.filter { pid in
+            HideRule.shouldHide(onScreen: map.onScreen[pid] ?? [], screens: frames, target: target,
+                                offScreen: map.offScreen[pid] ?? 0,
+                                minimized: Self.windows(pid: pid).filter(Self.isMinimized).count)
+        })
+        let hide = TidyRule.toHide(order: order, hideable: hideable, keep: settings.tidyKeep)
+        for pid in hide { NSRunningApplication(processIdentifier: pid)?.hide() }
+        onMoved?(hide.isEmpty ? "整理するものはありません" : "\(hide.count) 個のアプリを隠しました", infos[target].area)
+    }
+
     /// 隠れているアプリを全部表示する（メニュー）
     static func unhideAll() {
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.isHidden {

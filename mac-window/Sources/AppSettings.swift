@@ -28,6 +28,8 @@ final class AppSettings: ObservableObject {
     @Published var stageManagerOff: Bool { didSet { d.set(stageManagerOff, forKey: "stageManagerOff") } }
     /// 配置パネルで並べるとき、ほかのアプリを隠す
     @Published var panelHideOthers: Bool { didSet { d.set(panelHideOthers, forKey: "panelHideOthers") } }
+    /// 「この画面を整理」で残すアプリの数
+    @Published var tidyKeep: Int { didSet { d.set(tidyKeep, forKey: "tidyKeep") } }
     /// 動かしたときに、場所の名前を画面に一瞬出す
     @Published var showToast: Bool { didSet { d.set(showToast, forKey: "showToast") } }
 
@@ -58,6 +60,7 @@ final class AppSettings: ObservableObject {
             "stageManagerOff": true,
             "showToast": true,
             "panelHideOthers": true,
+            "tidyKeep": 3,
             "edgeBarrier": true,
             "edgeHold": 0.4,
             "edgeAllSides": false,
@@ -72,6 +75,7 @@ final class AppSettings: ObservableObject {
         stageManagerOff = d.bool(forKey: "stageManagerOff")
         showToast = d.bool(forKey: "showToast")
         panelHideOthers = d.bool(forKey: "panelHideOthers")
+        tidyKeep = max(1, d.integer(forKey: "tidyKeep"))
         edgeBarrier = d.bool(forKey: "edgeBarrier")
         edgeHold = d.double(forKey: "edgeHold")
         edgeAllSides = d.bool(forKey: "edgeAllSides")

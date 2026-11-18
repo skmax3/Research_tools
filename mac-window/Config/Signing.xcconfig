@@ -1,0 +1,10 @@
+// 署名の設定。初期値は「このMacで実行するための署名（Sign to Run Locally）」。
+// Apple ID の無料チームで署名したい場合は、同じフォルダに Local.xcconfig を作って
+// 下の3つを上書きする（Local.xcconfig は Git に入らない）。例:
+//   MADO_SIGN_STYLE = Automatic
+//   MADO_SIGN_IDENTITY = Apple Development
+//   MADO_TEAM = ABCDE12345
+MADO_SIGN_STYLE = Manual
+MADO_SIGN_IDENTITY = -
+MADO_TEAM =
+#include? "Local.xcconfig"

@@ -1,0 +1,270 @@
+import AppKit
+import Carbon.HIToolbox
+import ServiceManagement
+
+/// アプリの入口。Dock には出さず、メニューバーに常駐する（Info.plist の LSUIElement）。
+@main
+enum MadoWariMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    let settings = AppSettings()
+    private var mover: WindowMover!
+    private var grid: GridPickerController!
+    private var settingsWindow: SettingsWindowController!
+    private var statusItem: NSStatusItem!
+    private var hotKeys: [HotKey] = []
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // すでに別の窓割りが動いていたら終了させる（Xcode から実行したときと、インストール版が二重に動かないように）
+        let me = NSRunningApplication.current
+        for other in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+        where other.processIdentifier != me.processIdentifier {
+            other.terminate()
+        }
+
+        mover = WindowMover(settings: settings)
+        grid = GridPickerController(mover: mover)
+        settingsWindow = SettingsWindowController(settings: settings, actions: SettingsActions(
+            apply: { [weak self] p in self?.whenTrusted { self?.mover.apply(p) } },
+            capture: { [weak self] screen in self?.capture(screen) ?? [] },
+            tryAI: { [weak self] in self?.whenTrusted { self?.mover.pairWithAI() } },
+            openAccessibility: { [weak self] in self?.openAccessibility() }
+        ))
+        setupStatusItem()
+        registerHotKeys(retry: true)
+
+        if !WindowMover.trusted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.askTrust(first: true) }
+        }
+    }
+
+    // MARK: - ショートカット
+
+    private func registerHotKeys(retry: Bool) {
+        hotKeys = []
+        var failed: [String] = []
+        for s in Shortcut.all {
+            let action = s.action
+            if let hk = HotKey(keyCode: UInt32(s.keyCode), modifiers: UInt32(s.modifiers), action: { [weak self] in
+                self?.perform(action)
+            }) {
+                hotKeys.append(hk)
+            } else {
+                failed.append(s.label)
+            }
+        }
+        if failed.isEmpty { return }
+        if retry {
+            // 終了させた古い窓割りがまだショートカットを持っていることがあるので、少し待ってやり直す
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.registerHotKeys(retry: false) }
+        } else {
+            alert("一部のショートカットを登録できませんでした",
+                  "\(failed.joined(separator: "  "))\n\nほかのアプリ（Rectangle など）が同じキーを使っている可能性があります。メニューバーのアイコンからも操作できます。")
+        }
+    }
+
+    private func perform(_ action: WindowAction) {
+        whenTrusted { [self] in
+            switch action {
+            case .snap(let zones): mover.snap(zones)
+            case .half(let top): mover.half(top: top)
+            case .display(let step): mover.moveToDisplay(step: step)
+            case .undo: mover.undo()
+            case .grid: grid.toggle()
+            case .ai: mover.pairWithAI()
+            case .preset(let i):
+                if i < settings.presets.count { mover.apply(settings.presets[i]) } else { NSSound.beep() }
+            }
+        }
+    }
+
+    /// アクセシビリティが許可されていれば実行。なければ案内を出す
+    private func whenTrusted(_ body: () -> Void) {
+        if WindowMover.trusted { body() } else { askTrust(first: false) }
+    }
+
+    private func askTrust(first: Bool) {
+        NSApp.activate()
+        let a = NSAlert()
+        a.messageText = first ? "窓割りへようこそ" : "アクセシビリティの許可が必要です"
+        a.informativeText = """
+        ほかのアプリのウィンドウを動かすには、「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で \
+        MadoWari をオンにしてください。
+
+        許可したあとは、⌃⌥← / → などのショートカットや、メニューバーのアイコン（縦に割った四角）から使えます。
+        """
+        a.addButton(withTitle: "許可の設定を開く")
+        a.addButton(withTitle: "あとで")
+        if a.runModal() == .alertFirstButtonReturn { openAccessibility() }
+    }
+
+    private func openAccessibility() {
+        WindowMover.requestTrust()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: - メニューバー
+
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            let image = NSImage(systemSymbolName: "rectangle.split.3x1", accessibilityDescription: "窓割り")
+            image?.isTemplate = true
+            button.image = image
+        }
+        let menu = NSMenu()
+        menu.delegate = self
+        statusItem.menu = menu
+    }
+
+    /// メニューを開くたびに作り直す（プリセットの名前や許可の状態を反映する）
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        if !WindowMover.trusted {
+            menu.addItem(item("⚠️ アクセシビリティを許可する…", #selector(openAccessibilityFromMenu)))
+            menu.addItem(.separator())
+        }
+
+        menu.addItem(header("配置プリセット"))
+        for (i, p) in settings.presets.enumerated() {
+            let shortcut = i < Shortcut.presetKeys.count ? Shortcut.presetKeys[i] : nil
+            let it = item(p.name, #selector(applyPreset(_:)), shortcut: shortcut)
+            it.tag = i
+            menu.addItem(it)
+        }
+        menu.addItem(item("今の画面の配置をプリセットに保存", #selector(saveCurrentLayout)))
+        menu.addItem(.separator())
+
+        for s in Shortcut.toolKeys {
+            menu.addItem(item(s.title, #selector(runShortcut(_:)), shortcut: s))
+        }
+        let moveMenu = NSMenu()
+        for s in Shortcut.windowKeys {
+            moveMenu.addItem(item(s.title, #selector(runShortcut(_:)), shortcut: s))
+        }
+        let moveItem = NSMenuItem(title: "手前のウィンドウを動かす", action: nil, keyEquivalent: "")
+        moveItem.submenu = moveMenu
+        menu.addItem(moveItem)
+        menu.addItem(.separator())
+
+        menu.addItem(item("設定…", #selector(openSettings), key: ","))
+        let login = item("ログイン時に起動", #selector(toggleLogin))
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(login)
+        if Self.updateScript != nil {
+            menu.addItem(item("最新版にアップデート…", #selector(update)))
+        }
+        menu.addItem(.separator())
+        menu.addItem(item("窓割りを終了", #selector(quit), key: "q"))
+    }
+
+    private func header(_ title: String) -> NSMenuItem {
+        let it = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        it.isEnabled = false
+        return it
+    }
+
+    /// shortcut を渡すと、メニューの右側にキーを表示する（押せるのはメニューを開いている間だけ。普段はショートカットで直接）
+    private func item(_ title: String, _ action: Selector, shortcut: Shortcut? = nil, key: String = "") -> NSMenuItem {
+        let it = NSMenuItem(title: title, action: action, keyEquivalent: shortcut?.menuKey ?? key)
+        if let shortcut {
+            it.keyEquivalentModifierMask = shortcut.menuModifiers
+            it.representedObject = ShortcutBox(shortcut)
+        }
+        it.target = self
+        return it
+    }
+
+    @objc private func runShortcut(_ sender: NSMenuItem) {
+        guard let box = sender.representedObject as? ShortcutBox else { return }
+        // メニューが閉じて、元のアプリが手前に戻ってから動かす
+        DispatchQueue.main.async { [weak self] in self?.perform(box.shortcut.action) }
+    }
+
+    @objc private func applyPreset(_ sender: NSMenuItem) {
+        perform(.preset(sender.tag))
+    }
+
+    @objc private func saveCurrentLayout() {
+        whenTrusted { [self] in
+            let slots = capture(.largest)
+            guard !slots.isEmpty else {
+                alert("ウィンドウが見つかりませんでした", "一番大きい画面に、保存したいウィンドウを並べてから、もう一度試してください。")
+                return
+            }
+            let n = settings.presets.count + 1
+            settings.presets.append(Preset(name: "保存した配置 \(n)", slots: slots))
+            NSApp.activate()
+            let a = NSAlert()
+            a.messageText = "今の配置を保存しました（\(slots.count) 個のウィンドウ）"
+            a.informativeText = n <= 9
+                ? "⌃⌥\(n) で呼び出せます。設定で名前や並べ方を変えられます。"
+                : "設定でプリセットの順番を上げると、⌃⌥1〜9 で呼び出せます。"
+            a.addButton(withTitle: "OK")
+            a.addButton(withTitle: "設定を開く")
+            if a.runModal() == .alertSecondButtonReturn { settingsWindow.show() }
+        }
+    }
+
+    private func capture(_ screen: ScreenTarget) -> [Slot] {
+        guard WindowMover.trusted else { askTrust(first: false); return [] }
+        return mover.captureSlots(screen: screen)
+    }
+
+    @objc private func openAccessibilityFromMenu() { openAccessibility() }
+
+    @objc private func openSettings() { settingsWindow.show() }
+
+    @objc private func toggleLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            alert("ログイン時の起動を設定できませんでした",
+                  "アプリを「アプリケーション」フォルダに入れてから、もう一度試してください。\n\n詳細: \(error.localizedDescription)")
+        }
+    }
+
+    /// install.sh が記録したリポジトリの場所にある update.command
+    private static var updateScript: URL? {
+        guard let repo = UserDefaults.standard.string(forKey: "repoPath") else { return nil }
+        let url = URL(fileURLWithPath: repo).appendingPathComponent("mac-window/scripts/update.command")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// .command ファイルを開くとターミナルで実行される（取得 → ビルド → 入れ替え → 再起動）
+    @objc private func update() {
+        guard let url = Self.updateScript else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func quit() { NSApp.terminate(nil) }
+
+    private func alert(_ title: String, _ text: String) {
+        NSApp.activate()
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = text
+        a.runModal()
+    }
+}
+
+/// NSMenuItem.representedObject に入れるための入れ物
+private final class ShortcutBox {
+    let shortcut: Shortcut
+    init(_ s: Shortcut) { shortcut = s }
+}

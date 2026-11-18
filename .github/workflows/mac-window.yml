@@ -1,0 +1,58 @@
+# Mac アプリ（mac-window/）を GitHub の Mac 環境でビルドして、コンパイルできるか確認する。
+# 作業ブランチでは、project.yml から作った Xcode プロジェクト（MadoWari.xcodeproj）を自動でコミットする。
+name: mac-window
+
+on:
+  push:
+    paths:
+      - 'mac-window/**'
+      - '.github/workflows/mac-window.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-window-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: XcodeGen を入れる
+        run: brew install xcodegen
+
+      - name: Xcode プロジェクトを生成
+        working-directory: mac-window
+        run: xcodegen generate
+
+      - name: テスト（座標の計算・プリセット）
+        working-directory: mac-window
+        run: |
+          swiftc Sources/Geometry.swift Sources/Presets.swift Tests/main.swift -o /tmp/geometry-check
+          /tmp/geometry-check
+
+      - name: ビルド（署名なし）
+        working-directory: mac-window
+        run: |
+          xcodebuild -version
+          xcodebuild -project MadoWari.xcodeproj -scheme MadoWari -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO -quiet build
+
+      - name: 生成したプロジェクトをコミット（作業ブランチのみ）
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mac-window/MadoWari.xcodeproj mac-window/Config/Info.plist
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "mac-window: Xcode プロジェクトを自動生成"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

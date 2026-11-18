@@ -151,46 +151,80 @@ final class WindowMover {
         Self.setFrame(w, r)
     }
 
+    // MARK: - フルスクリーン
+
+    static func isFullScreen(_ w: AXUIElement) -> Bool {
+        (attribute(w, "AXFullScreen") as? Bool) ?? false
+    }
+
+    /// フルスクリーン（緑のボタンで全画面にした状態）なら解除して、元の画面に戻ってから body を実行する。
+    /// フルスクリーンのままだと、位置や大きさを変えられないため
+    func whenWindowed(_ w: AXUIElement, _ body: @escaping () -> Void) {
+        guard settings.exitFullScreen, Self.isFullScreen(w) else { body(); return }
+        AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanFalse)
+        waitWindowed(w, tries: 0, body)
+    }
+
+    private func waitWindowed(_ w: AXUIElement, tries: Int, _ body: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            if Self.isFullScreen(w) && tries < 20 {
+                self?.waitWindowed(w, tries: tries + 1, body)
+            } else {
+                // 解除のアニメーション（画面が横に流れる動き）が終わるのを待ってから動かす
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { body() }
+            }
+        }
+    }
+
     // MARK: - ショートカットの操作
+
+    /// 動かしたときに呼ぶ（場所の名前と、その画面の範囲）。App.swift が画面に名前を一瞬出す
+    var onMoved: ((String, CGRect) -> Void)?
 
     /// 手前のウィンドウを場所へ。同じキーを続けて押すと zones の順に切り替える
     func snap(_ zones: [NamedZone]) {
-        guard let w = Self.focusedWindow(), let cur = Self.frame(of: w), let area = self.area(for: cur) else {
-            NSSound.beep()
-            return
+        guard let w = Self.focusedWindow() else { NSSound.beep(); return }
+        whenWindowed(w) { [weak self] in
+            guard let self, let cur = Self.frame(of: w), let area = self.area(for: cur) else { NSSound.beep(); return }
+            let frames = zones.map { Geometry.frame(for: $0.zone, in: area, gap: self.gap) }
+            var i = Geometry.nextIndex(current: cur, candidates: frames)
+            // アプリの最小サイズなどで指定どおりにならなかったときも、続けて押せば次へ進むようにする
+            if i == 0, let last = self.lastSnap, CFEqual(last.window, w), last.zones == zones,
+               Date().timeIntervalSince(last.time) < 3 {
+                i = (last.index + 1) % zones.count
+            }
+            self.move(w, to: frames[i])
+            self.lastSnap = (w, zones, i, Date())
+            self.onMoved?(zones[i].title, area)
         }
-        let frames = zones.map { Geometry.frame(for: $0.zone, in: area, gap: gap) }
-        var i = Geometry.nextIndex(current: cur, candidates: frames)
-        // アプリの最小サイズなどで指定どおりにならなかったときも、続けて押せば次へ進むようにする
-        if i == 0, let last = lastSnap, CFEqual(last.window, w), last.zones == zones,
-           Date().timeIntervalSince(last.time) < 3 {
-            i = (last.index + 1) % zones.count
-        }
-        move(w, to: frames[i])
-        lastSnap = (w, zones, i, Date())
     }
 
     /// 今いる列の中で上半分・下半分にする
     func half(top: Bool) {
-        guard let w = Self.focusedWindow(), let cur = Self.frame(of: w), let area = self.area(for: cur) else {
-            NSSound.beep()
-            return
+        guard let w = Self.focusedWindow() else { NSSound.beep(); return }
+        whenWindowed(w) { [weak self] in
+            guard let self, let cur = Self.frame(of: w), let area = self.area(for: cur) else { NSSound.beep(); return }
+            let z = Geometry.verticalHalf(of: Geometry.zone(for: cur, in: area), top: top)
+            self.move(w, to: Geometry.frame(for: z, in: area, gap: self.gap))
+            self.lastSnap = nil
+            self.onMoved?(NamedZone.named(z)?.title ?? (top ? "上半分" : "下半分"), area)
         }
-        let z = Geometry.verticalHalf(of: Geometry.zone(for: cur, in: area), top: top)
-        move(w, to: Geometry.frame(for: z, in: area, gap: gap))
-        lastSnap = nil
     }
 
     /// 隣の画面へ、同じ割合のまま移す
     func moveToDisplay(step: Int) {
-        guard let w = Self.focusedWindow(), let cur = Self.frame(of: w) else { NSSound.beep(); return }
-        let all = Self.areas().sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
-        guard all.count > 1 else { NSSound.beep(); return }
-        let i = Geometry.bestScreenIndex(for: cur, screens: all)
-        let j = (i + step + all.count) % all.count
-        let z = Geometry.zone(for: cur, in: all[i])
-        move(w, to: Geometry.frame(for: z, in: all[j], gap: gap))
-        lastSnap = nil
+        guard let w = Self.focusedWindow() else { NSSound.beep(); return }
+        whenWindowed(w) { [weak self] in
+            guard let self, let cur = Self.frame(of: w) else { NSSound.beep(); return }
+            let all = Self.areas().sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
+            guard all.count > 1 else { NSSound.beep(); return }
+            let i = Geometry.bestScreenIndex(for: cur, screens: all)
+            let j = (i + step + all.count) % all.count
+            let z = Geometry.zone(for: cur, in: all[i])
+            self.move(w, to: Geometry.frame(for: z, in: all[j], gap: self.gap))
+            self.lastSnap = nil
+            self.onMoved?(step < 0 ? "左の画面へ" : "右の画面へ", all[j])
+        }
     }
 
     /// 最後に動かす前の位置に戻す
@@ -201,12 +235,17 @@ final class WindowMover {
         history.remove(at: i)
         Self.setFrame(w, f)
         lastSnap = nil
+        if let area = self.area(for: f) { onMoved?("元の位置に戻しました", area) }
     }
 
-    /// マス目で指定した場所へ（GridPicker から）
+    /// マス目で指定した場所へ（配置パネルから）
     func place(_ w: AXUIElement, zone: Zone, area: CGRect) {
-        move(w, to: Geometry.frame(for: zone, in: area, gap: gap))
-        lastSnap = nil
+        whenWindowed(w) { [weak self] in
+            guard let self else { return }
+            self.move(w, to: Geometry.frame(for: zone, in: area, gap: self.gap))
+            self.lastSnap = nil
+            self.onMoved?(NamedZone.named(zone)?.title ?? "マス目で指定した場所", area)
+        }
     }
 
     // MARK: - AI と並べる
@@ -217,14 +256,19 @@ final class WindowMover {
         let zones = AIPairing.zones(aiOnLeft: settings.aiOnLeft, fraction: settings.aiFraction)
         let front = NSWorkspace.shared.frontmostApplication
         let isOther = front?.bundleIdentifier != bid && front?.processIdentifier != ProcessInfo.processInfo.processIdentifier
-        let work = isOther ? Self.focusedWindow() : nil
-        let workFrame = work.flatMap { Self.frame(of: $0) }
-        guard let area = workFrame.flatMap({ self.area(for: $0) }) ?? Self.largestArea() else { return }
-        if let work {
-            move(work, to: Geometry.frame(for: zones.work, in: area, gap: gap))
-        }
-        placeAI(bid: bid, zone: zones.ai, area: area, work: work, attempt: 0)
         lastSnap = nil
+        guard isOther, let work = Self.focusedWindow() else {
+            // 作業中のウィンドウがない（AI が手前・設定画面から）ときは、AI だけ並べる
+            guard let area = Self.largestArea() else { return }
+            placeAI(bid: bid, zone: zones.ai, area: area, work: nil, attempt: 0)
+            return
+        }
+        whenWindowed(work) { [weak self] in
+            guard let self else { return }
+            guard let area = Self.frame(of: work).flatMap({ self.area(for: $0) }) ?? Self.largestArea() else { return }
+            self.move(work, to: Geometry.frame(for: zones.work, in: area, gap: self.gap))
+            self.placeAI(bid: bid, zone: zones.ai, area: area, work: work, attempt: 0)
+        }
     }
 
     private func placeAI(bid: String, zone: Zone, area: CGRect, work: AXUIElement?, attempt: Int) {
@@ -243,17 +287,21 @@ final class WindowMover {
             }
             return
         }
-        move(w, to: Geometry.frame(for: zone, in: area, gap: gap))
-        Self.raise(w)
-        // AI を見えるようにしたあと、操作は作業中のウィンドウに戻す
-        if let work {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { Self.raise(work) }
+        whenWindowed(w) { [weak self] in
+            guard let self else { return }
+            self.move(w, to: Geometry.frame(for: zone, in: area, gap: self.gap))
+            Self.raise(w)
+            // AI を見えるようにしたあと、操作は作業中のウィンドウに戻す
+            if let work {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { Self.raise(work) }
+            }
+            self.onMoved?("AI と並べました", area)
         }
     }
 
     // MARK: - 配置プリセット
 
-    /// プリセットどおりに並べる。起動待ちのアプリは、ウィンドウが出たら並べる
+    /// プリセットどおりに並べる。起動待ちのアプリ・フルスクリーン解除待ちのウィンドウは、準備ができたら並べる
     func apply(_ preset: Preset) {
         guard let area = preset.screen == .largest ? Self.largestArea() : Self.mouseArea() else { return }
         // 同じアプリが何行かあるときは、そのアプリのウィンドウを上から順に割り当てる
@@ -272,6 +320,7 @@ final class WindowMover {
         }
         lastSnap = nil
         place(jobs, area: area, attempt: 0, launched: [])
+        onMoved?(preset.name, area)
     }
 
     private func place(_ jobs: [(slot: Slot, index: Int)], area: CGRect, attempt: Int, launched: Set<String>) {
@@ -284,6 +333,12 @@ final class WindowMover {
             if job.index < wins.count {
                 apps.forEach { $0.unhide() }
                 let w = wins[job.index]
+                if settings.exitFullScreen && Self.isFullScreen(w) {
+                    // フルスクリーンを解除して、次の回で並べる
+                    AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanFalse)
+                    waiting.append(job)
+                    continue
+                }
                 move(w, to: Geometry.frame(for: job.slot.zone, in: area, gap: gap))
                 placed.append(w)
             } else if job.slot.launch {
@@ -299,7 +354,8 @@ final class WindowMover {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 * Double(k)) { Self.raise(w) }
         }
         if !waiting.isEmpty && attempt < 20 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            // フルスクリーン解除のアニメーションにも間に合うよう、少し長めに待つ
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
                 self?.place(waiting, area: area, attempt: attempt + 1, launched: launched)
             }
         }

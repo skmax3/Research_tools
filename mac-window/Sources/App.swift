@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Combine
 import ServiceManagement
 
 /// アプリの入口。Dock には出さず、メニューバーに常駐する（Info.plist の LSUIElement）。
@@ -17,10 +18,13 @@ enum MadoWariMain {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let settings = AppSettings()
     private var mover: WindowMover!
-    private var grid: GridPickerController!
+    private var panel: GridPickerController!
+    private var barrier: EdgeBarrierController!
+    private var toast = Toast()
     private var settingsWindow: SettingsWindowController!
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
+    private var subs: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // すでに別の窓割りが動いていたら終了させる（Xcode から実行したときと、インストール版が二重に動かないように）
@@ -31,7 +35,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         mover = WindowMover(settings: settings)
-        grid = GridPickerController(mover: mover)
+        mover.onMoved = { [weak self] text, area in
+            guard let self, self.settings.showToast else { return }
+            self.toast.show(text, in: area)
+        }
+        panel = GridPickerController(mover: mover)
+        panel.onPreset = { [weak self] i in self?.perform(.preset(i)) }
+        panel.onAI = { [weak self] in self?.perform(.ai) }
+        barrier = EdgeBarrierController(settings: settings)
+        barrier.refresh()
         settingsWindow = SettingsWindowController(settings: settings, actions: SettingsActions(
             apply: { [weak self] p in self?.whenTrusted { self?.mover.apply(p) } },
             capture: { [weak self] screen in self?.capture(screen) ?? [] },
@@ -40,6 +52,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ))
         setupStatusItem()
         registerHotKeys(retry: true)
+
+        // 設定でキーを変えたら登録し直す。キーを記録している間はショートカットを止める
+        settings.$shortcutOverrides.combineLatest(settings.$disabledShortcuts, settings.$isRecordingShortcut)
+            .dropFirst()
+            .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.settings.isRecordingShortcut { self.hotKeys = [] } else { self.registerHotKeys(retry: false) }
+            }
+            .store(in: &subs)
 
         if !WindowMover.trusted {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.askTrust(first: true) }
@@ -52,13 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotKeys = []
         var failed: [String] = []
         for s in Shortcut.all {
+            guard let c = settings.combo(for: s) else { continue }
             let action = s.action
-            if let hk = HotKey(keyCode: UInt32(s.keyCode), modifiers: UInt32(s.modifiers), action: { [weak self] in
+            if let hk = HotKey(keyCode: UInt32(c.keyCode), modifiers: UInt32(c.modifiers), action: { [weak self] in
                 self?.perform(action)
             }) {
                 hotKeys.append(hk)
             } else {
-                failed.append(s.label)
+                failed.append(c.label)
             }
         }
         if failed.isEmpty { return }
@@ -67,21 +90,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.registerHotKeys(retry: false) }
         } else {
             alert("一部のショートカットを登録できませんでした",
-                  "\(failed.joined(separator: "  "))\n\nほかのアプリ（Rectangle など）が同じキーを使っている可能性があります。メニューバーのアイコンからも操作できます。")
+                  "\(failed.joined(separator: "  "))\n\nほかのアプリ（Rectangle など）が同じキーを使っている可能性があります。設定の「ショートカット」でキーを変えられます。")
         }
     }
 
     private func perform(_ action: WindowAction) {
+        if case .toggleBarrier = action {
+            settings.edgeBarrier.toggle()
+            if let area = WindowMover.mouseArea() {
+                toast.show(settings.edgeBarrier ? "境目でカーソルを止める：オン" : "境目でカーソルを止める：オフ", in: area)
+            }
+            return
+        }
         whenTrusted { [self] in
             switch action {
             case .snap(let zones): mover.snap(zones)
             case .half(let top): mover.half(top: top)
             case .display(let step): mover.moveToDisplay(step: step)
             case .undo: mover.undo()
-            case .grid: grid.toggle()
+            case .panel: panel.toggle()
             case .ai: mover.pairWithAI()
             case .preset(let i):
                 if i < settings.presets.count { mover.apply(settings.presets[i]) } else { NSSound.beep() }
+            case .toggleBarrier: break
             }
         }
     }
@@ -99,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ほかのアプリのウィンドウを動かすには、「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で \
         MadoWari をオンにしてください。
 
-        許可したあとは、⌃⌥← / → などのショートカットや、メニューバーのアイコン（縦に割った四角）から使えます。
+        許可したあとは、⌃⌥W の配置パネル、⌃⌥← / → などのショートカット、メニューバーのアイコン（縦に割った四角）から使えます。
         """
         a.addButton(withTitle: "許可の設定を開く")
         a.addButton(withTitle: "あとで")
@@ -111,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+        barrier.refresh()  // 許可されたら、境目の機能も自動で動き出す
     }
 
     // MARK: - メニューバー
@@ -127,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
     }
 
-    /// メニューを開くたびに作り直す（プリセットの名前や許可の状態を反映する）
+    /// メニューを開くたびに作り直す（プリセットの名前・キー・許可の状態を反映する）
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
@@ -136,26 +168,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
+        if let s = Shortcut.named("panel") {
+            let it = item("配置パネルを開く…", #selector(runShortcut(_:)), shortcut: s)
+            it.image = NSImage(systemSymbolName: "square.grid.3x3", accessibilityDescription: nil)
+            menu.addItem(it)
+        }
+        if let s = Shortcut.named("ai") {
+            let it = item("AI と並べる（\(settings.aiName)）", #selector(runShortcut(_:)), shortcut: s)
+            it.image = ZoneImage.make([AIPairing.zones(aiOnLeft: settings.aiOnLeft, fraction: settings.aiFraction).ai],
+                                      colors: [.systemOrange])
+            menu.addItem(it)
+        }
+        menu.addItem(.separator())
+
         menu.addItem(header("配置プリセット"))
         for (i, p) in settings.presets.enumerated() {
             let shortcut = i < Shortcut.presetKeys.count ? Shortcut.presetKeys[i] : nil
             let it = item(p.name, #selector(applyPreset(_:)), shortcut: shortcut)
             it.tag = i
+            it.image = ZoneImage.preset(p)
             menu.addItem(it)
         }
         menu.addItem(item("今の画面の配置をプリセットに保存", #selector(saveCurrentLayout)))
         menu.addItem(.separator())
 
-        for s in Shortcut.toolKeys {
-            menu.addItem(item(s.title, #selector(runShortcut(_:)), shortcut: s))
-        }
         let moveMenu = NSMenu()
         for s in Shortcut.windowKeys {
-            moveMenu.addItem(item(s.title, #selector(runShortcut(_:)), shortcut: s))
+            let it = item(s.title, #selector(runShortcut(_:)), shortcut: s)
+            if case .snap(let zones) = s.action, let first = zones.first {
+                it.image = ZoneImage.make([first.zone])
+            }
+            moveMenu.addItem(it)
         }
         let moveItem = NSMenuItem(title: "手前のウィンドウを動かす", action: nil, keyEquivalent: "")
         moveItem.submenu = moveMenu
         menu.addItem(moveItem)
+
+        let barrierItem = item("境目でカーソルを止める", #selector(runShortcut(_:)), shortcut: Shortcut.named("barrier"))
+        barrierItem.state = settings.edgeBarrier ? .on : .off
+        menu.addItem(barrierItem)
         menu.addItem(.separator())
 
         menu.addItem(item("設定…", #selector(openSettings), key: ","))
@@ -175,13 +226,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return it
     }
 
-    /// shortcut を渡すと、メニューの右側にキーを表示する（押せるのはメニューを開いている間だけ。普段はショートカットで直接）
+    /// shortcut を渡すと、メニューの右側に今のキーを表示する（押せるのはメニューを開いている間だけ。普段はショートカットで直接）
     private func item(_ title: String, _ action: Selector, shortcut: Shortcut? = nil, key: String = "") -> NSMenuItem {
-        let it = NSMenuItem(title: title, action: action, keyEquivalent: shortcut?.menuKey ?? key)
-        if let shortcut {
-            it.keyEquivalentModifierMask = shortcut.menuModifiers
-            it.representedObject = ShortcutBox(shortcut)
-        }
+        let combo = shortcut.flatMap { settings.combo(for: $0) }
+        let it = NSMenuItem(title: title, action: action, keyEquivalent: combo?.menuKey ?? key)
+        if let combo { it.keyEquivalentModifierMask = combo.menuModifiers }
+        if let shortcut { it.representedObject = ShortcutBox(shortcut) }
         it.target = self
         return it
     }
@@ -205,12 +255,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             let n = settings.presets.count + 1
             settings.presets.append(Preset(name: "保存した配置 \(n)", slots: slots))
+            let key = n <= Shortcut.presetKeys.count ? settings.combo(for: Shortcut.presetKeys[n - 1])?.label : nil
             NSApp.activate()
             let a = NSAlert()
             a.messageText = "今の配置を保存しました（\(slots.count) 個のウィンドウ）"
-            a.informativeText = n <= 9
-                ? "⌃⌥\(n) で呼び出せます。設定で名前や並べ方を変えられます。"
-                : "設定でプリセットの順番を上げると、⌃⌥1〜9 で呼び出せます。"
+            a.informativeText = key.map { "\($0) で呼び出せます。設定で名前や並べ方を変えられます。" }
+                ?? "設定でプリセットの順番を上げると、ショートカットで呼び出せます。"
             a.addButton(withTitle: "OK")
             a.addButton(withTitle: "設定を開く")
             if a.runModal() == .alertSecondButtonReturn { settingsWindow.show() }

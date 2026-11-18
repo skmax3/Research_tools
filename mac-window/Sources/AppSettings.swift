@@ -22,6 +22,8 @@ final class AppSettings: ObservableObject {
     // MARK: 動かし方
     /// フルスクリーンのウィンドウは、解除してから並べる
     @Published var exitFullScreen: Bool { didSet { d.set(exitFullScreen, forKey: "exitFullScreen") } }
+    /// いくつものアプリをまとめて並べるときは、ステージマネージャをオフにする（オンだと最後のアプリしか残らない）
+    @Published var stageManagerOff: Bool { didSet { d.set(stageManagerOff, forKey: "stageManagerOff") } }
     /// 動かしたときに、場所の名前を画面に一瞬出す
     @Published var showToast: Bool { didSet { d.set(showToast, forKey: "showToast") } }
 
@@ -49,6 +51,7 @@ final class AppSettings: ObservableObject {
             "aiOnLeft": true,
             "aiFraction": 1.0 / 3.0,
             "exitFullScreen": true,
+            "stageManagerOff": true,
             "showToast": true,
             "edgeBarrier": true,
             "edgeHold": 0.4,
@@ -61,6 +64,7 @@ final class AppSettings: ObservableObject {
         aiOnLeft = d.bool(forKey: "aiOnLeft")
         aiFraction = d.double(forKey: "aiFraction")
         exitFullScreen = d.bool(forKey: "exitFullScreen")
+        stageManagerOff = d.bool(forKey: "stageManagerOff")
         showToast = d.bool(forKey: "showToast")
         edgeBarrier = d.bool(forKey: "edgeBarrier")
         edgeHold = d.double(forKey: "edgeHold")

@@ -527,6 +527,11 @@ struct GeneralTab: View {
                 }
                 Toggle("フルスクリーンのウィンドウは、解除してから並べる", isOn: $settings.exitFullScreen)
                 Toggle("動かしたとき、場所の名前を画面に一瞬出す", isOn: $settings.showToast)
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("まとめて並べるときは、ステージマネージャをオフにする", isOn: $settings.stageManagerOff)
+                    Text("ステージマネージャがオンだと、アプリを手前に出すたびに前のアプリが左の帯にしまわれ、最後の 1 つしか残りません。配置案・プリセット・AI と並べる（2 つ以上のアプリ）のときだけオフにします。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("起動と許可") {

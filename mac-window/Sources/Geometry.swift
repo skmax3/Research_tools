@@ -218,3 +218,67 @@ enum Geometry {
         return (min(max(c, 0), cols - 1), min(max(r, 0), rows - 1))
     }
 }
+
+// MARK: - アプリの最小サイズに合わせて並びを直す
+
+/// アプリによっては「これ以上狭くできない」最小の幅があり、MacBook 本体のような小さな画面で 3 列にすると、
+/// 1/3 より広いまま残って隣のウィンドウに重なる。そのときは、狭くできるほかの列を細くして、全体を画面に収める。
+enum Fit {
+    /// 1 方向（横なら x と幅）の並び直し。
+    /// - starts / sizes: 各ウィンドウの場所（割合）
+    /// - mins: 各ウィンドウに必要な大きさ（割合）。分からない・足りているものは 0
+    /// - 戻り値: 直した starts / sizes。どうしても収まらない（最小の合計が画面より大きい）ときは、できるところまで
+    static func refit(starts: [Double], sizes: [Double], mins: [Double]) -> (starts: [Double], sizes: [Double]) {
+        let eps = 1e-6
+        // 境目（列の区切り）の一覧
+        var edges: [Double] = []
+        for v in zip(starts, sizes).flatMap({ [$0.0, $0.0 + $0.1] }) where !edges.contains(where: { abs($0 - v) < 1e-4 }) {
+            edges.append(v)
+        }
+        edges.sort()
+        guard edges.count >= 2 else { return (starts, sizes) }
+        func index(_ v: Double) -> Int { edges.firstIndex { abs($0 - v) < 1e-4 } ?? 0 }
+        let spans = zip(starts, sizes).map { (index($0.0), index($0.0 + $0.1)) }
+        var cols = (1..<edges.count).map { edges[$0] - edges[$0 - 1] }
+        let floor = 0.05  // 列をこれ以上は細くしない（割合）
+
+        func sum(_ s: (Int, Int)) -> Double { cols[s.0..<s.1].reduce(0, +) }
+
+        var changed = false
+        for _ in 0..<20 {
+            // いちばん足りないウィンドウ
+            let deficits = spans.indices.map { mins[$0] - sum(spans[$0]) }
+            guard let i = deficits.indices.max(by: { deficits[$0] < deficits[$1] }), deficits[i] > eps else { break }
+            let need = deficits[i]
+            let mine = Set(spans[i].0..<spans[i].1)
+            // ほかの列が細くなれる量（その列を含むウィンドウの余裕と、列の最小）
+            var slack = cols.indices.map { k -> Double in
+                guard !mine.contains(k) else { return 0 }
+                var s = cols[k] - floor
+                for (j, sp) in spans.enumerated() where (sp.0..<sp.1).contains(k) && mins[j] > 0 {
+                    s = min(s, sum(sp) - mins[j])
+                }
+                return max(s, 0)
+            }
+            let total = slack.reduce(0, +)
+            guard total > eps else { break }
+            let take = min(need, total)
+            for k in slack.indices { slack[k] = slack[k] / total * take; cols[k] -= slack[k] }
+            let myWidth = mine.reduce(0) { $0 + cols[$1] }
+            for k in mine { cols[k] += myWidth > eps ? take * cols[k] / myWidth : take / Double(mine.count) }
+            changed = true
+            if take < need - eps { break }
+        }
+        guard changed else { return (starts, sizes) }
+        var e = [edges[0]]
+        for c in cols { e.append(e.last! + c) }
+        return (spans.map { e[$0.0] }, spans.map { e[$0.1] - e[$0.0] })
+    }
+
+    /// 場所の一覧と、ウィンドウに必要な幅・高さ（割合。0 は「足りている」）から、直した場所を返す
+    static func refit(zones: [Zone], minW: [Double], minH: [Double]) -> [Zone] {
+        let x = refit(starts: zones.map(\.x), sizes: zones.map(\.w), mins: minW)
+        let y = refit(starts: zones.map(\.y), sizes: zones.map(\.h), mins: minH)
+        return zones.indices.map { Zone(x.starts[$0], y.starts[$0], x.sizes[$0], y.sizes[$0]) }
+    }
+}

@@ -1,62 +1,64 @@
 import AppKit
 import SwiftUI
 
-/// キー入力を受け取れる、アプリを手前に出さないパネル（Spotlight のような小さな窓）
+/// キー入力を受け取れる、アプリを手前に出さないパネル（Spotlight のような窓）
 final class KeyPanel: NSPanel {
     var onCancel: (() -> Void)?
-    var onKey: ((String) -> Bool)?
+    var onKey: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { onCancel?() }
     override func keyDown(with event: NSEvent) {
-        if let c = event.charactersIgnoringModifiers, onKey?(c) == true { return }
+        if onKey?(event) == true { return }
         super.keyDown(with: event)
     }
 }
 
-/// ⌃⌥W：配置パネル。手前のウィンドウを、マス目のドラッグ・よく使う場所・プリセット・AI と並べる から選んで動かす。
-/// ショートカットを覚えていなくても、マウスだけで全部の機能が使える
+/// ⌃⌥W：配置パネル（画面は LayoutBoard.swift）。
+/// 「配置案から並べる」: 配置案を選び、開いているウィンドウを枠にドラッグして、まとめて並べる。
+/// 「手前のウィンドウだけ動かす」: マス目のドラッグ・ボタンで、手前のウィンドウ 1 つを動かす
 final class GridPickerController {
     private let mover: WindowMover
     private var panel: KeyPanel?
     private var preview: NSWindow?
-    private var target: AXUIElement?
-    private var area: CGRect = .zero
+    private var model: LayoutBoardModel?
     private var observer: NSObjectProtocol?
 
-    /// プリセット・AI はパネルを閉じてから App 側で実行する
-    var onPreset: ((Int) -> Void)?
     var onAI: (() -> Void)?
 
     init(mover: WindowMover) { self.mover = mover }
 
     func toggle() {
         if panel != nil { close(); return }
+        let screens = WindowMover.screenInfos()
+        guard !screens.isEmpty else { NSSound.beep(); return }
+
+        // 手前のウィンドウ（「手前のウィンドウだけ動かす」用）
         let w = WindowMover.focusedWindow()
         let f = w.flatMap { WindowMover.frame(of: $0) }
-        // ウィンドウがない（デスクトップを選んでいる）ときも、プリセットと AI は使えるように開く
-        guard let area = f.flatMap({ mover.area(for: $0) }) ?? WindowMover.mouseArea() else { NSSound.beep(); return }
-        target = w
-        self.area = area
-        let current = f.map { Geometry.zone(for: $0, in: area) }
-        let appName = NSWorkspace.shared.frontmostApplication?.localizedName
+        let targetArea = f.flatMap { mover.area(for: $0) }
+        let zone = f.flatMap { frame in targetArea.map { Geometry.zone(for: frame, in: $0) } }
 
-        let view = PanelHUD(
-            aspect: area.width / max(area.height, 1),
-            current: current,
-            targetName: w == nil ? nil : appName,
-            presets: mover.settings.presets,
+        // パネルを出す画面・最初に並べる画面は、マウスのある画面
+        let mouse = NSEvent.mouseLocation
+        let index = NSScreen.screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) } ?? 0
+
+        let model = LayoutBoardModel(settings: mover.settings, screens: screens, screenIndex: min(index, screens.count - 1),
+                                     target: w, targetName: w == nil ? nil : NSWorkspace.shared.frontmostApplication?.localizedName,
+                                     targetZone: zone, targetArea: targetArea)
+        self.model = model
+
+        let view = LayoutBoardView(
+            model: model,
             aiName: mover.settings.aiName,
-            onChange: { [weak self] z in self?.showPreview(z) },
-            onCommit: { [weak self] z in self?.commit(z) },
-            onPreset: { [weak self] i in self?.finish { self?.onPreset?(i) } },
+            onArrange: { [weak self] in self?.arrange() },
+            onSave: { [weak self] in self?.save() },
             onAI: { [weak self] in self?.finish { self?.onAI?() } },
-            onCancel: { [weak self] in self?.close() }
+            onSingleChange: { [weak self] z in self?.showPreview(z) },
+            onSingleCommit: { [weak self] z in self?.commitSingle(z) }
         )
         let host = NSHostingView(rootView: view)
-        let width: CGFloat = 600
-        let fit = host.fittingSize
-        let height = fit.height > 0 ? fit.height : 520
-        let p = KeyPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+        let size = NSSize(width: 1060, height: 680)
+        let p = KeyPanel(contentRect: NSRect(origin: .zero, size: size),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.contentView = host
         p.isOpaque = false
@@ -65,14 +67,14 @@ final class GridPickerController {
         p.level = .floating
         p.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         p.onCancel = { [weak self] in self?.close() }
-        // 数字キー 1〜9 でもプリセットを選べる
-        p.onKey = { [weak self] c in
-            guard let n = Int(c), n >= 1, n <= 9, let self, n <= self.mover.settings.presets.count else { return false }
-            self.finish { self.onPreset?(n - 1) }
+        // ↩ で並べる
+        p.onKey = { [weak self] e in
+            guard let self, e.keyCode == 36 || e.keyCode == 76, self.model?.mode == .layout else { return false }
+            self.arrange()
             return true
         }
-        let screen = WindowMover.toCocoa(area)
-        p.setFrameOrigin(NSPoint(x: screen.midX - width / 2, y: screen.midY - height / 2))
+        let screen = WindowMover.toCocoa(screens[min(index, screens.count - 1)].frame)
+        p.setFrameOrigin(NSPoint(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2))
         panel = p
         p.makeKeyAndOrderFront(nil)
         // ほかの場所をクリックしたら閉じる
@@ -81,10 +83,35 @@ final class GridPickerController {
         }
     }
 
-    /// 選んでいる場所を、実際の画面の上に半透明で示す
+    /// 配置案どおりにまとめて並べる
+    private func arrange() {
+        guard let model else { return }
+        let items = model.items()
+        guard !items.isEmpty else { NSSound.beep(); return }
+        let area = model.area
+        let name = model.choice.name
+        finish { [weak self] in self?.mover.arrange(items, area: area, name: name) }
+    }
+
+    /// 今の枠の割り当てを、配置プリセットとして保存する（名前は設定で変えられる）
+    private func save() {
+        guard let model else { return }
+        let slots = model.slotsForPreset()
+        guard !slots.isEmpty else { NSSound.beep(); return }
+        let apps = slots.map(\.appName).prefix(3).joined(separator: " ＋ ")
+        let preset = Preset(name: "\(model.choice.name)：\(apps)", slots: slots, screen: model.screenTarget)
+        mover.settings.presets.append(preset)
+        let n = mover.settings.presets.count
+        let key = n <= Shortcut.presetKeys.count ? mover.settings.combo(for: Shortcut.presetKeys[n - 1])?.label : nil
+        model.rebuildChoices()
+        model.choiceID = "preset-\(preset.id.uuidString)"
+        mover.onMoved?(key.map { "プリセットに保存しました（\($0)）" } ?? "プリセットに保存しました", model.area)
+    }
+
+    /// 選んでいる場所を、実際の画面の上に半透明で示す（手前のウィンドウだけ動かすとき）
     private func showPreview(_ z: Zone) {
-        guard target != nil else { return }
-        let frame = WindowMover.toCocoa(Geometry.frame(for: z, in: area, gap: CGFloat(mover.settings.gap)))
+        guard let area = model?.targetArea else { return }
+        let frame = WindowMover.toCocoa(mover.frameFor(z, in: area))
         if preview == nil {
             let w = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             w.isOpaque = false
@@ -108,9 +135,8 @@ final class GridPickerController {
         panel?.orderFront(nil)
     }
 
-    private func commit(_ z: Zone) {
-        guard let w = target else { NSSound.beep(); return }
-        let area = self.area
+    private func commitSingle(_ z: Zone) {
+        guard let w = model?.target, let area = model?.targetArea else { NSSound.beep(); return }
         finish { [weak self] in self?.mover.place(w, zone: z, area: area) }
     }
 
@@ -132,87 +158,6 @@ final class GridPickerController {
         preview = nil
         panel?.orderOut(nil)
         panel = nil
-        target = nil
-    }
-}
-
-private struct PanelHUD: View {
-    let aspect: CGFloat
-    let current: Zone?
-    let targetName: String?
-    let presets: [Preset]
-    let aiName: String
-    let onChange: (Zone) -> Void
-    let onCommit: (Zone) -> Void
-    let onPreset: (Int) -> Void
-    let onAI: () -> Void
-    let onCancel: () -> Void
-
-    private let quick: [NamedZone] = [.leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
-                                      .leftHalf, .rightHalf, .centerHalf, .leftQuarter, .maximize]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "rectangle.split.3x1").foregroundStyle(.secondary)
-                Text(targetName.map { "「\($0)」を動かす" } ?? "配置パネル").font(.headline)
-                Spacer()
-                Text("Esc で閉じる").font(.caption).foregroundStyle(.secondary)
-            }
-
-            if targetName != nil {
-                Text("マス目をドラッグして場所を選ぶ").font(.caption).foregroundStyle(.secondary)
-                GridSelector(cols: 12, rows: 6, highlight: current, highlightLabel: "いまの場所",
-                             onChange: onChange, onCommit: onCommit)
-                    .aspectRatio(aspect, contentMode: .fit)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
-                    ForEach(quick) { z in
-                        Button { onCommit(z.zone) } label: {
-                            VStack(spacing: 3) {
-                                ZoneIcon(zones: [z.zone], size: CGSize(width: 36, height: 20))
-                                Text(z.title).font(.caption2).lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            } else {
-                Text("動かすウィンドウがありません。プリセットか AI を選べます。")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-
-            Divider()
-            HStack {
-                Text("配置プリセット（数字キーでも選べる）").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { onAI() } label: { Label("AI と並べる（\(aiName)）", systemImage: "sparkles") }
-                    .controlSize(.small)
-            }
-            if presets.isEmpty {
-                Text("プリセットはまだありません。メニューの「設定…」から作れます。")
-                    .font(.callout).foregroundStyle(.secondary)
-            } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 2), spacing: 6) {
-                    ForEach(Array(presets.prefix(9).enumerated()), id: \.element.id) { i, p in
-                        Button { onPreset(i) } label: {
-                            HStack(spacing: 8) {
-                                Text("\(i + 1)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                                ZoneIcon(zones: p.slots.map(\.zone), size: CGSize(width: 40, height: 22),
-                                         colors: slotColors)
-                                Text(p.name).lineLimit(1)
-                                Spacer(minLength: 0)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .frame(width: 600)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay { RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.12)) }
+        model = nil
     }
 }

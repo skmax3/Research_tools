@@ -29,10 +29,10 @@ jobs:
         working-directory: mac-window
         run: xcodegen generate
 
-      - name: テスト（座標の計算・プリセット・カーソル・キー）
+      - name: テスト（座標の計算・プリセット・配置案・カーソル・キー）
         working-directory: mac-window
         run: |
-          swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Tests/main.swift -o /tmp/geometry-check
+          swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Sources/Layouts.swift Tests/main.swift -o /tmp/geometry-check
           /tmp/geometry-check
 
       - name: ビルド（署名なし）

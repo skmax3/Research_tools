@@ -5,7 +5,7 @@
 ## ビルドと確認
 - このクラウド環境では Mac アプリをビルドできない。push すると GitHub Actions（`.github/workflows/mac-window.yml`）が
   テスト（`Tests/main.swift`）とビルドを行い、作業ブランチなら Xcode プロジェクトを自動生成してコミットする。
-- テストできるのは「画面やイベントに触らない計算」だけ（`Geometry.swift`・`Presets.swift`・`EdgeLogic.swift`・`KeyCombo.swift`）。
+- テストできるのは「画面やイベントに触らない計算」だけ（`Geometry.swift`・`Presets.swift`・`EdgeLogic.swift`・`KeyCombo.swift`・`Layouts.swift`）。
   計算を足したら、なるべくこれらのファイルに置いてテストを書く。新しいファイルをテストに含めるときは、ワークフローの `swiftc` の行にも足す。
 - 動作確認はユーザーの Mac で行う。メニュー「最新版にアップデート…」で、main の最新版がビルドされて入れ替わる。
 
@@ -23,11 +23,15 @@
 | `EdgeLogic.swift` | 境目でカーソルを止める判定 ※テストあり |
 | `EdgeBarrierController.swift` | マウスの動きを受け取って、境目でカーソルを止める（イベントタップ） |
 | `GridSelector.swift` | マス目の図（設定画面と配置パネルで共通） |
-| `GridPicker.swift` | ⌃⌥W の配置パネル（マス目・よく使う場所・プリセット・AI） |
+| `Layouts.swift` | 配置パネルの「配置案」のひな形 ※テストあり |
+| `WindowList.swift` | 開いているウィンドウの一覧（手前から順。フルスクリーン・別のデスクトップも） |
+| `LayoutBoard.swift` | 配置パネルの中身（配置案を選ぶ → 枠にウィンドウをドラッグ → 並べる）と、その状態 |
+| `GridPicker.swift` | 配置パネルの窓を出す・閉じる、並べる・保存する |
 | `Toast.swift` | 動かしたときに場所の名前を一瞬出す表示、メニュー用の小さな図 |
 | `SettingsView.swift` | 設定画面（SwiftUI）：配置プリセット・AI・ショートカット・カーソルと動き方 |
 
 ## よくある変更のしかた
+- **配置案を増やす**: `Layouts.swift` の `LayoutTemplate.builtIn` に 1 行足す。テストが、はみ出し・重なりを確かめる。
 - **場所を増やす**（例「左 2/5」）: `Geometry.swift` の `NamedZone` に case・`title`・`group`・`zone` を足す。テストは自動で全部の場所を確かめる。
 - **ショートカットの操作を増やす**: `Shortcuts.swift` の一覧に 1 行足す（`id` は保存に使うので、あとで変えない）。
   新しい種類の操作なら `WindowAction` に case を足し、`App.swift` の `perform` に処理を書く。設定画面とメニューには自動で出る。

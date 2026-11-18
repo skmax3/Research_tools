@@ -14,6 +14,11 @@ final class WindowMover {
 
     private var gap: CGFloat { CGFloat(settings.gap) }
 
+    /// 場所 z に置くときの枠（ウィンドウ間のすき間と、画面の端の余白を設定から）
+    func frameFor(_ z: Zone, in area: CGRect) -> CGRect {
+        Geometry.frame(for: z, in: area, gap: gap, edge: CGFloat(settings.edgeGap))
+    }
+
     // MARK: - 許可
 
     static var trusted: Bool { AXIsProcessTrusted() }
@@ -36,6 +41,45 @@ final class WindowMover {
     /// 左上原点の枠 → macOS の画面座標（自分のウィンドウを置くとき）
     static func toCocoa(_ r: CGRect) -> CGRect { Geometry.flip(r, primaryHeight: primaryHeight) }
 
+    /// つながっている画面の一覧（名前・使える範囲・全体・本体の画面か）
+    struct ScreenInfo {
+        let name: String
+        let area: CGRect      // メニューバーと Dock を除く（左上原点）
+        let frame: CGRect     // 画面全体（左上原点）
+        let builtin: Bool     // MacBook 本体の画面
+    }
+
+    static func screenInfos() -> [ScreenInfo] {
+        NSScreen.screens.map { s in
+            let id = (s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+            let builtin = CGDisplayIsBuiltin(id) != 0
+            return ScreenInfo(name: builtin ? "MacBook 本体" : s.localizedName,
+                              area: Geometry.flip(s.visibleFrame, primaryHeight: primaryHeight),
+                              frame: Geometry.flip(s.frame, primaryHeight: primaryHeight), builtin: builtin)
+        }
+    }
+
+    static func builtinArea() -> CGRect? { screenInfos().first(where: \.builtin)?.area }
+
+    /// プリセットの「並べる画面」の範囲（その画面がなければ一番大きい画面）
+    static func area(for target: ScreenTarget) -> CGRect? {
+        switch target {
+        case .largest: return largestArea()
+        case .mouse: return mouseArea()
+        case .builtin: return builtinArea() ?? largestArea()
+        }
+    }
+
+    /// マウスのある画面を、プリセットの「並べる画面」で表す
+    static func mouseScreenTarget() -> ScreenTarget {
+        let p = NSEvent.mouseLocation
+        guard let i = NSScreen.screens.firstIndex(where: { NSMouseInRect(p, $0.frame, false) }) else { return .largest }
+        let infos = screenInfos()
+        guard i < infos.count else { return .largest }
+        if infos[i].builtin { return .builtin }
+        return largestArea() == infos[i].area ? .largest : .mouse
+    }
+
     static func largestArea() -> CGRect? {
         areas().max { $0.width * $0.height < $1.width * $1.height }
     }
@@ -56,7 +100,7 @@ final class WindowMover {
 
     // MARK: - ウィンドウの読み書き
 
-    private static func attribute(_ el: AXUIElement, _ name: String) -> CFTypeRef? {
+    static func attribute(_ el: AXUIElement, _ name: String) -> CFTypeRef? {
         var v: CFTypeRef?
         return AXUIElementCopyAttributeValue(el, name as CFString, &v) == .success ? v : nil
     }
@@ -186,7 +230,7 @@ final class WindowMover {
         guard let w = Self.focusedWindow() else { NSSound.beep(); return }
         whenWindowed(w) { [weak self] in
             guard let self, let cur = Self.frame(of: w), let area = self.area(for: cur) else { NSSound.beep(); return }
-            let frames = zones.map { Geometry.frame(for: $0.zone, in: area, gap: self.gap) }
+            let frames = zones.map { self.frameFor($0.zone, in: area) }
             var i = Geometry.nextIndex(current: cur, candidates: frames)
             // アプリの最小サイズなどで指定どおりにならなかったときも、続けて押せば次へ進むようにする
             if i == 0, let last = self.lastSnap, CFEqual(last.window, w), last.zones == zones,
@@ -205,7 +249,7 @@ final class WindowMover {
         whenWindowed(w) { [weak self] in
             guard let self, let cur = Self.frame(of: w), let area = self.area(for: cur) else { NSSound.beep(); return }
             let z = Geometry.verticalHalf(of: Geometry.zone(for: cur, in: area), top: top)
-            self.move(w, to: Geometry.frame(for: z, in: area, gap: self.gap))
+            self.move(w, to: self.frameFor(z, in: area))
             self.lastSnap = nil
             self.onMoved?(NamedZone.named(z)?.title ?? (top ? "上半分" : "下半分"), area)
         }
@@ -221,7 +265,7 @@ final class WindowMover {
             let i = Geometry.bestScreenIndex(for: cur, screens: all)
             let j = (i + step + all.count) % all.count
             let z = Geometry.zone(for: cur, in: all[i])
-            self.move(w, to: Geometry.frame(for: z, in: all[j], gap: self.gap))
+            self.move(w, to: self.frameFor(z, in: all[j]))
             self.lastSnap = nil
             self.onMoved?(step < 0 ? "左の画面へ" : "右の画面へ", all[j])
         }
@@ -242,7 +286,7 @@ final class WindowMover {
     func place(_ w: AXUIElement, zone: Zone, area: CGRect) {
         whenWindowed(w) { [weak self] in
             guard let self else { return }
-            self.move(w, to: Geometry.frame(for: zone, in: area, gap: self.gap))
+            self.move(w, to: self.frameFor(zone, in: area))
             self.lastSnap = nil
             self.onMoved?(NamedZone.named(zone)?.title ?? "マス目で指定した場所", area)
         }
@@ -266,7 +310,7 @@ final class WindowMover {
         whenWindowed(work) { [weak self] in
             guard let self else { return }
             guard let area = Self.frame(of: work).flatMap({ self.area(for: $0) }) ?? Self.largestArea() else { return }
-            self.move(work, to: Geometry.frame(for: zones.work, in: area, gap: self.gap))
+            self.move(work, to: self.frameFor(zones.work, in: area))
             self.placeAI(bid: bid, zone: zones.ai, area: area, work: work, attempt: 0)
         }
     }
@@ -289,7 +333,7 @@ final class WindowMover {
         }
         whenWindowed(w) { [weak self] in
             guard let self else { return }
-            self.move(w, to: Geometry.frame(for: zone, in: area, gap: self.gap))
+            self.move(w, to: self.frameFor(zone, in: area))
             Self.raise(w)
             // AI を見えるようにしたあと、操作は作業中のウィンドウに戻す
             if let work {
@@ -299,17 +343,32 @@ final class WindowMover {
         }
     }
 
-    // MARK: - 配置プリセット
+    // MARK: - 配置プリセット・配置パネル
 
-    /// プリセットどおりに並べる。起動待ちのアプリ・フルスクリーン解除待ちのウィンドウは、準備ができたら並べる
+    /// 並べる 1 つ分。window があればそのウィンドウ、なければ bundleID のアプリを起動（開き直し）してそのウィンドウを使う
+    struct ArrangeItem {
+        var window: AXUIElement?
+        var bundleID: String
+        var zone: Zone
+        var fullScreen = false
+    }
+
+    /// プリセットどおりに並べる
     func apply(_ preset: Preset) {
-        guard let area = preset.screen == .largest ? Self.largestArea() : Self.mouseArea() else { return }
+        guard let area = Self.area(for: preset.screen) else { return }
         // 同じアプリが何行かあるときは、そのアプリのウィンドウを上から順に割り当てる
         var count: [String: Int] = [:]
-        var jobs: [(slot: Slot, index: Int)] = []
+        var items: [ArrangeItem] = []
         for s in preset.slots {
-            jobs.append((s, count[s.bundleID, default: 0]))
+            let k = count[s.bundleID, default: 0]
             count[s.bundleID, default: 0] += 1
+            let wins = NSRunningApplication.runningApplications(withBundleIdentifier: s.bundleID)
+                .flatMap { Self.windowsMainFirst(pid: $0.processIdentifier) }
+            if k < wins.count {
+                items.append(ArrangeItem(window: wins[k], bundleID: s.bundleID, zone: s.zone, fullScreen: s.fullScreen))
+            } else if s.launch {
+                items.append(ArrangeItem(window: nil, bundleID: s.bundleID, zone: s.zone, fullScreen: s.fullScreen))
+            }
         }
         if preset.hideOthers {
             let keep = Set(preset.slots.map(\.bundleID))
@@ -318,52 +377,71 @@ final class WindowMover {
                 app.hide()
             }
         }
-        lastSnap = nil
-        place(jobs, area: area, attempt: 0, launched: [])
-        onMoved?(preset.name, area)
+        arrange(items, area: area, name: preset.name)
     }
 
-    private func place(_ jobs: [(slot: Slot, index: Int)], area: CGRect, attempt: Int, launched: Set<String>) {
-        var launched = launched
-        var waiting: [(slot: Slot, index: Int)] = []
-        var placed: [AXUIElement] = []
-        for job in jobs {
-            let apps = NSRunningApplication.runningApplications(withBundleIdentifier: job.slot.bundleID)
-            let wins = apps.flatMap { Self.windowsMainFirst(pid: $0.processIdentifier) }
-            if job.index < wins.count {
-                apps.forEach { $0.unhide() }
-                let w = wins[job.index]
-                if settings.exitFullScreen && Self.isFullScreen(w) {
-                    // フルスクリーンを解除して、次の回で並べる
-                    AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanFalse)
-                    waiting.append(job)
-                    continue
+    /// まとめて並べる。後ろの行から 1 つずつ並べて手前に出すので、最後に 1 行目がいちばん手前になる。
+    /// フルスクリーンの解除・アプリの起動を待つことがあるので、1 つ終わってから次へ進む
+    func arrange(_ items: [ArrangeItem], area: CGRect, name: String) {
+        lastSnap = nil
+        guard !items.isEmpty else { NSSound.beep(); return }
+        var used: [AXUIElement] = items.compactMap(\.window)
+        var queue = Array(items.reversed())
+        var toFullScreen: [AXUIElement] = []
+
+        func next() {
+            guard !queue.isEmpty else {
+                // フルスクリーンにする指定のウィンドウは、並べ終わってから
+                for (k, w) in toFullScreen.enumerated() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + 0.8 * Double(k)) {
+                        AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanTrue)
+                    }
                 }
-                move(w, to: Geometry.frame(for: job.slot.zone, in: area, gap: gap))
-                placed.append(w)
-            } else if job.slot.launch {
-                if !launched.contains(job.slot.bundleID) {
-                    _ = Self.launch(job.slot.bundleID)
-                    launched.insert(job.slot.bundleID)
+                onMoved?(name, area)
+                return
+            }
+            let item = queue.removeFirst()
+            resolve(item, used: used, attempt: 0) { [weak self] w in
+                guard let self else { return }
+                guard let w else { next(); return }
+                used.append(w)
+                NSRunningApplication(processIdentifier: Self.pid(of: w))?.unhide()
+                self.whenWindowed(w) {
+                    self.move(w, to: self.frameFor(item.zone, in: area))
+                    Self.raise(w)
+                    if item.fullScreen { toFullScreen.append(w) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { next() }
                 }
-                waiting.append(job)
             }
         }
-        // 後ろの行から順に手前に出し、最後に 1 行目のウィンドウがいちばん手前になるようにする
-        for (k, w) in placed.reversed().enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 * Double(k)) { Self.raise(w) }
+        next()
+    }
+
+    /// 並べるウィンドウを決める。アプリだけ指定のときは起動（開き直し）して、まだ使っていないウィンドウが出るのを待つ
+    private func resolve(_ item: ArrangeItem, used: [AXUIElement], attempt: Int, _ done: @escaping (AXUIElement?) -> Void) {
+        if let w = item.window { done(w); return }
+        let wins = NSRunningApplication.runningApplications(withBundleIdentifier: item.bundleID)
+            .flatMap { Self.windowsMainFirst(pid: $0.processIdentifier) }
+        if let w = wins.first(where: { c in !used.contains(where: { CFEqual($0, c) }) }) {
+            done(w)
+            return
         }
-        if !waiting.isEmpty && attempt < 20 {
-            // フルスクリーン解除のアニメーションにも間に合うよう、少し長めに待つ
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-                self?.place(waiting, area: area, attempt: attempt + 1, launched: launched)
-            }
+        if attempt == 0 { _ = Self.launch(item.bundleID) }
+        guard attempt < 20 else { done(nil); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.resolve(item, used: used, attempt: attempt + 1, done)
         }
+    }
+
+    static func pid(of w: AXUIElement) -> pid_t {
+        var pid: pid_t = 0
+        AXUIElementGetPid(w, &pid)
+        return pid
     }
 
     /// 今の画面の配置を読み取る（「今の配置をプリセットに保存」）
     func captureSlots(screen: ScreenTarget) -> [Slot] {
-        guard let area = screen == .largest ? Self.largestArea() : Self.mouseArea() else { return [] }
+        guard let area = Self.area(for: screen) else { return [] }
         let all = Self.areas()
         var found: [(frame: CGRect, slot: Slot)] = []
         for app in NSWorkspace.shared.runningApplications
@@ -371,7 +449,8 @@ final class WindowMover {
             guard let bid = app.bundleIdentifier else { continue }
             for w in Self.windows(pid: app.processIdentifier) where !Self.isMinimized(w) {
                 guard let f = Self.frame(of: w), all[Geometry.bestScreenIndex(for: f, screens: all)] == area else { continue }
-                let slot = Slot(bundleID: bid, appName: app.localizedName ?? bid, zone: Geometry.zone(for: f, in: area))
+                let slot = Slot(bundleID: bid, appName: app.localizedName ?? bid, zone: Geometry.zone(for: f, in: area),
+                                fullScreen: Self.isFullScreen(w))
                 found.append((f, slot))
             }
         }

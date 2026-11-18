@@ -40,7 +40,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.toast.show(text, in: area)
         }
         panel = GridPickerController(mover: mover)
-        panel.onPreset = { [weak self] i in self?.perform(.preset(i)) }
         panel.onAI = { [weak self] in self?.perform(.ai) }
         barrier = EdgeBarrierController(settings: settings)
         barrier.refresh()
@@ -189,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             it.image = ZoneImage.preset(p)
             menu.addItem(it)
         }
-        menu.addItem(item("今の画面の配置をプリセットに保存", #selector(saveCurrentLayout)))
+        menu.addItem(item("今の配置をプリセットに保存（マウスのある画面）", #selector(saveCurrentLayout)))
         menu.addItem(.separator())
 
         let moveMenu = NSMenu()
@@ -248,13 +247,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func saveCurrentLayout() {
         whenTrusted { [self] in
-            let slots = capture(.largest)
+            // マウスのある画面の配置を保存する（4K モニターでも MacBook 本体でも）
+            let target = WindowMover.mouseScreenTarget()
+            let slots = capture(target)
             guard !slots.isEmpty else {
-                alert("ウィンドウが見つかりませんでした", "一番大きい画面に、保存したいウィンドウを並べてから、もう一度試してください。")
+                alert("ウィンドウが見つかりませんでした", "保存したい画面にマウスを置き、ウィンドウを並べてから、もう一度試してください。")
                 return
             }
             let n = settings.presets.count + 1
-            settings.presets.append(Preset(name: "保存した配置 \(n)", slots: slots))
+            settings.presets.append(Preset(name: "保存した配置 \(n)", slots: slots, screen: target))
             let key = n <= Shortcut.presetKeys.count ? settings.combo(for: Shortcut.presetKeys[n - 1])?.label : nil
             NSApp.activate()
             let a = NSAlert()

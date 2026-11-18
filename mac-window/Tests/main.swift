@@ -178,5 +178,31 @@ check("フルスクリーン指定 古いデータ", oldDecoded?.first?.slots.fi
 let builtinPreset = try? JSONDecoder().decode(Preset.self, from: JSONEncoder().encode(Preset(name: "Mac", slots: [], screen: .builtin)))
 check("MacBook 本体の画面 保存", builtinPreset?.screen == .builtin)
 
+// アプリの最小幅に合わせて並び直す（MacBook 本体で 3 列にしたら、真ん中のアプリが 1/3 まで狭くならなかった）
+do {
+    let t = 1.0 / 3
+    func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 1e-6 }
+    let three = [Zone(0, 0, t, 1), Zone(t, 0, t, 1), Zone(2 * t, 0, t, 1)]
+    // 真ん中が 0.45 必要 → 左右が 0.275 ずつに細くなり、重ならず画面にぴったり収まる
+    let f = Fit.refit(zones: three, minW: [0, 0.45, 0], minH: [0, 0, 0])
+    check("最小幅 真ん中", near(f[1].w, 0.45), "\(f)")
+    check("最小幅 左右を細く", near(f[0].w, 0.275) && near(f[2].w, 0.275), "\(f)")
+    check("最小幅 すき間なく並ぶ", near(f[0].x, 0) && near(f[1].x, f[0].w) && near(f[2].x + f[2].w, 1), "\(f)")
+    // 左も 0.3 必要 → 左は 0.3 より細くならず、3 つで画面にぴったり
+    let g = Fit.refit(zones: three, minW: [0.3, 0.45, 0], minH: [0, 0, 0])
+    check("最小幅 2 つ", g[0].w >= 0.3 - 1e-6 && near(g[1].w, 0.45) && near(g[2].x + g[2].w, 1)
+          && near(g[1].x, g[0].w) && near(g[2].x, g[1].x + g[1].w), "\(g)")
+    // 足りていれば変えない
+    check("最小幅 変えない", Fit.refit(zones: three, minW: [0, 0, 0], minH: [0, 0, 0]) == three)
+    // 6 分割（左は上下いっぱい・中央と右は上下）でも、右上が広くなれば中央の列が細くなる
+    let six = [Zone(0, 0, t, 1), Zone(t, 0, t, 0.5), Zone(2 * t, 0, t, 0.5), Zone(t, 0.5, t, 0.5), Zone(2 * t, 0.5, t, 0.5)]
+    let s6 = Fit.refit(zones: six, minW: [0, 0, 0.4, 0, 0], minH: [0, 0, 0, 0, 0])
+    check("最小幅 6分割", near(s6[2].w, 0.4) && near(s6[4].w, 0.4) && near(s6[2].x + s6[2].w, 1)
+          && s6[1].x + s6[1].w <= s6[2].x + 1e-6, "\(s6)")
+    // 収まらないときも、画面からははみ出さない
+    let n = Fit.refit(zones: three, minW: [0.5, 0.5, 0.5], minH: [0, 0, 0])
+    check("最小幅 収まらない", near(n[2].x + n[2].w, 1), "\(n)")
+}
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

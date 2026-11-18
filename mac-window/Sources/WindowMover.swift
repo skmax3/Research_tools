@@ -259,6 +259,7 @@ final class WindowMover {
                 i = (last.index + 1) % zones.count
             }
             self.move(w, to: frames[i])
+            self.keepInside(w, area: area)
             self.lastSnap = (w, zones, i, Date())
             self.onMoved?(zones[i].title, area)
         }
@@ -308,6 +309,7 @@ final class WindowMover {
         whenWindowed(w) { [weak self] in
             guard let self else { return }
             self.move(w, to: self.frameFor(zone, in: area))
+            self.keepInside(w, area: area)
             self.lastSnap = nil
             self.onMoved?(NamedZone.named(zone)?.title ?? "マス目で指定した場所", area)
         }
@@ -423,16 +425,15 @@ final class WindowMover {
         var used: [AXUIElement] = items.compactMap(\.window)
         var queue = Array(items.reversed())
         var toFullScreen: [AXUIElement] = []
+        var placed: [(window: AXUIElement, zone: Zone)] = []
 
         func next() {
             guard !queue.isEmpty else {
-                // フルスクリーンにする指定のウィンドウは、並べ終わってから
-                for (k, w) in toFullScreen.enumerated() {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + 0.8 * Double(k)) {
-                        AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanTrue)
-                    }
+                // アプリの最小サイズで指定より大きく残ったウィンドウがあれば、ほかを細くして重ならないようにする
+                refit(placed, area: area, current: placed.map(\.zone),
+                      minW: placed.map { _ in 0 }, minH: placed.map { _ in 0 }, round: 0) { [weak self] in
+                    self?.finishArrange(toFullScreen, area: area, name: name)
                 }
-                onMoved?(name, area)
                 return
             }
             let item = queue.removeFirst()
@@ -444,12 +445,64 @@ final class WindowMover {
                 self.whenWindowed(w) {
                     self.move(w, to: self.frameFor(item.zone, in: area))
                     Self.raise(w)
-                    if item.fullScreen { toFullScreen.append(w) }
+                    if item.fullScreen { toFullScreen.append(w) } else { placed.append((w, item.zone)) }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { next() }
                 }
             }
         }
         next()
+    }
+
+    private func finishArrange(_ toFullScreen: [AXUIElement], area: CGRect, name: String) {
+        // フルスクリーンにする指定のウィンドウは、並べ終わってから
+        for (k, w) in toFullScreen.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + 0.8 * Double(k)) {
+                AXUIElementSetAttributeValue(w, "AXFullScreen" as CFString, kCFBooleanTrue)
+            }
+        }
+        onMoved?(name, area)
+    }
+
+    /// 並べたあと、実際の大きさを読んで、指定より大きく残ったもの（アプリの最小サイズ）があれば並び直す。
+    /// 並び直すと別のウィンドウが最小サイズに当たることがあるので、最大 3 回くり返す
+    private func refit(_ placed: [(window: AXUIElement, zone: Zone)], area: CGRect, current: [Zone],
+                       minW: [Double], minH: [Double], round: Int, _ done: @escaping () -> Void) {
+        guard placed.count >= 2, area.width > 0, area.height > 0 else { done(); return }
+        var minW = minW, minH = minH
+        var grew = false
+        for (i, p) in placed.enumerated() {
+            guard let actual = Self.frame(of: p.window) else { continue }
+            let target = frameFor(current[i], in: area)
+            if actual.width > target.width + 2 {
+                let need = current[i].w + Double((actual.width - target.width) / area.width)
+                if need > minW[i] + 1e-4 { minW[i] = need; grew = true }
+            }
+            if actual.height > target.height + 2 {
+                let need = current[i].h + Double((actual.height - target.height) / area.height)
+                if need > minH[i] + 1e-4 { minH[i] = need; grew = true }
+            }
+        }
+        guard grew, round < 3 else {
+            for p in placed { keepInside(p.window, area: area) }
+            done()
+            return
+        }
+        let zones = Fit.refit(zones: placed.map(\.zone), minW: minW, minH: minH)
+        for (i, p) in placed.enumerated() { Self.setFrame(p.window, frameFor(zones[i], in: area)) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.refit(placed, area: area, current: zones, minW: minW, minH: minH, round: round + 1, done)
+        }
+    }
+
+    /// 画面からはみ出したウィンドウ（アプリの最小サイズで大きく残ったとき）を、画面の中へずらす
+    func keepInside(_ w: AXUIElement, area: CGRect) {
+        guard let f = Self.frame(of: w) else { return }
+        var o = f.origin
+        if f.maxX > area.maxX { o.x = max(area.minX, area.maxX - f.width) }
+        if f.maxY > area.maxY { o.y = max(area.minY, area.maxY - f.height) }
+        guard o != f.origin else { return }
+        var p = o
+        if let pos = AXValueCreate(.cgPoint, &p) { AXUIElementSetAttributeValue(w, kAXPositionAttribute as CFString, pos) }
     }
 
     /// 並べるウィンドウを決める。アプリだけ指定のときは起動（開き直し）して、まだ使っていないウィンドウが出るのを待つ

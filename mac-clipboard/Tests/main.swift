@@ -1,5 +1,6 @@
 // Transforms.swift の確認（GitHub Actions で実行: swiftc Sources/Transforms.swift Tests/main.swift）
 // 期待値は Web 版 clipboard/index.html の同じ変換の出力
+import AppKit
 import Foundation
 import CryptoKit
 
@@ -151,6 +152,54 @@ do {
 check("大きい順: 並び", StoragePolicy.sizeOrder([5, 0, 9, 5, 0]).map(String.init).joined(separator: ","), "2,0,3,1,4")
 check("大きい順: 空", String(StoragePolicy.sizeOrder([]).count), "0")
 check("大きい順: すべて同じ", StoragePolicy.sizeOrder([3, 3, 3]).map(String.init).joined(separator: ","), "0,1,2")
+
+// MARK: - 古い画像を軽くする
+let nowDate = Date()
+check("軽くする: 7日たった", String(StoragePolicy.isOldEnough(nowDate.addingTimeInterval(-7 * 86400), now: nowDate, days: 7)), "true")
+check("軽くする: 6日はまだ", String(StoragePolicy.isOldEnough(nowDate.addingTimeInterval(-6 * 86400), now: nowDate, days: 7)), "false")
+check("軽くする: 「しない」は、いつまでも古くない", String(StoragePolicy.isOldEnough(nowDate.addingTimeInterval(-9999 * 86400), now: nowDate, days: 0)), "false")
+check("軽くする: 3割以上軽くなる", String(StoragePolicy.worthwhile(original: 1000, compressed: 700, minSaving: 0.3)), "true")
+check("軽くする: 3割未満は採用しない", String(StoragePolicy.worthwhile(original: 1000, compressed: 701, minSaving: 0.3)), "false")
+check("軽くする: 大きさ 0 は採用しない", String(StoragePolicy.worthwhile(original: 0, compressed: 0, minSaving: 0.3)), "false")
+
+/// テスト用の画像。写真のようになめらかで、少しだけ細かいむらがある。alpha が 255 未満の四角を入れることもできる
+func testPNG(width: Int, height: Int, transparentBlock: Bool = false, flat: Bool = false) -> Data {
+    var seed: UInt32 = 12345
+    func noise() -> Int { seed = seed &* 1664525 &+ 1013904223; return Int((seed >> 24) % 9) - 4 }
+    let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    let p = ctx.data!.assumingMemoryBound(to: UInt8.self)
+    for y in 0..<height {
+        for x in 0..<width {
+            let i = (y * width + x) * 4
+            let base = (x * 255 / width, y * 255 / height, (x + y) * 255 / (width + height))
+            func clamp(_ v: Int) -> UInt8 { UInt8(max(0, min(255, v))) }
+            p[i] = flat ? 200 : clamp(base.0 + noise())
+            p[i + 1] = flat ? 120 : clamp(base.1 + noise())
+            p[i + 2] = flat ? 60 : clamp(base.2 + noise())
+            let transparent = transparentBlock && x < width / 4 && y < height / 4
+            p[i + 3] = transparent ? 128 : 255
+            if transparent { p[i] = p[i] / 2; p[i + 1] = p[i + 1] / 2; p[i + 2] = p[i + 2] / 2 }  // premultiplied
+        }
+    }
+    return NSBitmapImageRep(cgImage: ctx.makeImage()!).representation(using: .png, properties: [:])!
+}
+
+let photoPNG = testPNG(width: 1600, height: 1000)
+if let jpg = ImageRecompressor.jpegIfWorthwhile(photoPNG) {
+    check("軽くする: JPEG になる", String(jpg.starts(with: [0xFF, 0xD8])), "true")
+    check("軽くする: 3割以上小さい", String(Double(jpg.count) <= Double(photoPNG.count) * 0.7), "true")
+    let rep = NSBitmapImageRep(data: jpg)
+    check("軽くする: 大きさ（画素数）は同じ", "\(rep?.pixelsWide ?? 0)x\(rep?.pixelsHigh ?? 0)", "1600x1000")
+    print("  （参考）PNG \(photoPNG.count / 1024) KB → JPEG \(jpg.count / 1024) KB")
+} else {
+    failed += 1
+    print("FAIL 軽くする: 写真のような画像が JPEG にならなかった")
+}
+check("軽くする: 透明な部分がある画像は変えない", String(ImageRecompressor.jpegIfWorthwhile(testPNG(width: 800, height: 600, transparentBlock: true)) == nil), "true")
+check("軽くする: 小さくならない単色の図は変えない", String(ImageRecompressor.jpegIfWorthwhile(testPNG(width: 64, height: 64, flat: true)) == nil), "true")
+check("軽くする: PNG ではないデータは変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0xFF, 0xD8, 0xFF, 0xE0, 0, 0])) == nil), "true")
+check("軽くする: 壊れた PNG は変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3])) == nil), "true")
 
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")

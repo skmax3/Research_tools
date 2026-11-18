@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0F112CEB6C064CA1CE2BB6AA /* HotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */; };
+		18DB8997632123AC84BBB793 /* ImageRecompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679E6B48B5D096FA9E8D4F16 /* ImageRecompressor.swift */; };
 		2789AF4E2E9CA467D0C6FBBC /* PasteboardWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */; };
 		2D3147616E2AEAC6DF2DDC52 /* Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0221C3630A551599FE0BA736 /* Sync.swift */; };
 		38AADA7EC6E88320F7DF944A /* Transforms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */; };
@@ -20,6 +21,7 @@
 		C3613FADD8D8FB8193B765EB /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F972112E56A76BF7E2E7F5E /* App.swift */; };
 		DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4A671A69D6B43EB7E287C6 /* PanelView.swift */; };
 		EEBF020F5886F501E60577E6 /* StoragePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084076745281BAA2CF2554A /* StoragePolicy.swift */; };
+		F92F6BFA0B078E70AAED28F3 /* ImageUtil.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C1A7231AE50EF6D70439A21 /* ImageUtil.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,7 +30,9 @@
 		05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardWatcher.swift; sourceTree = "<group>"; };
 		1330D7915932665C16E89969 /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		1F972112E56A76BF7E2E7F5E /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		4C1A7231AE50EF6D70439A21 /* ImageUtil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUtil.swift; sourceTree = "<group>"; };
 		6448BE6D5317ECFF35A318F9 /* ClipShelf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipShelf.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		679E6B48B5D096FA9E8D4F16 /* ImageRecompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRecompressor.swift; sourceTree = "<group>"; };
 		7084076745281BAA2CF2554A /* StoragePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoragePolicy.swift; sourceTree = "<group>"; };
 		790567B2D8E715E343626452 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transforms.swift; sourceTree = "<group>"; };
@@ -47,6 +51,8 @@
 				1F972112E56A76BF7E2E7F5E /* App.swift */,
 				01B2FB36873685A6E4DEDD4D /* ClipStore.swift */,
 				C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */,
+				679E6B48B5D096FA9E8D4F16 /* ImageRecompressor.swift */,
+				4C1A7231AE50EF6D70439A21 /* ImageUtil.swift */,
 				A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */,
 				1330D7915932665C16E89969 /* PanelController.swift */,
 				EC4A671A69D6B43EB7E287C6 /* PanelView.swift */,
@@ -168,6 +174,8 @@
 				C3613FADD8D8FB8193B765EB /* App.swift in Sources */,
 				7D9B8E4E4E53EFDA24563543 /* ClipStore.swift in Sources */,
 				0F112CEB6C064CA1CE2BB6AA /* HotKey.swift in Sources */,
+				18DB8997632123AC84BBB793 /* ImageRecompressor.swift in Sources */,
+				F92F6BFA0B078E70AAED28F3 /* ImageUtil.swift in Sources */,
 				758C452A88150E4D7DE55C12 /* PairingWindow.swift in Sources */,
 				82F2BBC5918C2932783C596B /* PanelController.swift in Sources */,
 				DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */,

@@ -37,6 +37,24 @@ enum StoragePolicy {
         bytes.indices.sorted { a, b in bytes[a] != bytes[b] ? bytes[a] > bytes[b] : a < b }
     }
 
+    /// 古い画像を軽くする日数の選びかた（0 は「しない」）
+    static let compressChoices = [3, 7, 30, 0]
+    static let compressDefaultDays = 7
+
+    static func compressLabel(days: Int) -> String {
+        days == 0 ? "しない" : "\(days)日後"
+    }
+
+    /// date から days 日以上たっているか（days が 0 なら、いつまでも「古くない」）
+    static func isOldEnough(_ date: Date, now: Date, days: Int) -> Bool {
+        days > 0 && now.timeIntervalSince(date) >= Double(days) * 86400
+    }
+
+    /// 軽くした結果を採用するか。minSaving が 0.3 なら、3 割以上小さくなるときだけ
+    static func worthwhile(original: Int, compressed: Int, minSaving: Double) -> Bool {
+        original > 0 && compressed > 0 && Double(compressed) <= Double(original) * (1 - minSaving)
+    }
+
     /// 選べる容量の上限（MB）。0 は「上限なし」
     static let choicesMB = [500, 1024, 2048, 5120, 0]
     static let defaultMB = 1024

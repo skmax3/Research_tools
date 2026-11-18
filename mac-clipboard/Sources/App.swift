@@ -31,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 履歴の容量（使用量と上限）。サブメニューで上限を選ぶ
     private let storageItem = NSMenuItem(title: "履歴の容量", action: nil, keyEquivalent: "")
     private let storageMenu = NSMenu()
+    private let compressItem = NSMenuItem(title: "古い画像を軽くする", action: nil, keyEquivalent: "")
+    private let compressMenu = NSMenu()
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
     private let pairItem = NSMenuItem(title: "iPhone とペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
@@ -61,6 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel = PanelController(store: store, paster: paster, sync: sync) { [weak self] in self?.pairing.show() }
         setupStatusItem()
         sync.start()
+
+        // 古い画像を軽くする。起動の直後は忙しいので少し待ち、そのあとは1時間ごとに確かめる
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            self?.store.recompressOldImages(olderThanDays: Settings.compressAfterDays)
+        }
+        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            self?.store.recompressOldImages(olderThanDays: Settings.compressAfterDays)
+        }
 
         // ⇧⌘X でパネルを出す（Carbon のホットキー。アクセシビリティの許可は不要）
         registerHotKey(retry: true)
@@ -111,6 +121,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         storageItem.submenu = storageMenu
         menu.addItem(storageItem)
+        for days in StoragePolicy.compressChoices {
+            let it = NSMenuItem(title: StoragePolicy.compressLabel(days: days), action: #selector(setCompressDays(_:)), keyEquivalent: "")
+            it.tag = days
+            it.target = self
+            compressMenu.addItem(it)
+        }
+        compressItem.submenu = compressMenu
+        menu.addItem(compressItem)
         menu.addItem(updateItem)
         menu.addItem(NSMenuItem(title: "ピン留め以外の履歴を消去…", action: #selector(clearHistory), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -129,6 +147,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let used = ByteCountFormatter.string(fromByteCount: store.totalBytes(), countStyle: .file)
         storageItem.title = "履歴の容量: \(used) ／ 上限 \(StoragePolicy.label(mb: Settings.maxStorageMB))"
         for it in storageMenu.items { it.state = it.tag == Settings.maxStorageMB ? .on : .off }
+        var compressTitle = "古い画像を軽くする: \(StoragePolicy.compressLabel(days: Settings.compressAfterDays))"
+        if store.recompressedBytes > 0 {
+            compressTitle += "（これまでに \(ByteCountFormatter.string(fromByteCount: store.recompressedBytes, countStyle: .file)) 減）"
+        }
+        compressItem.title = compressTitle
+        for it in compressMenu.items { it.state = it.tag == Settings.compressAfterDays ? .on : .off }
         trustItem.title = Paster.trusted ? "自動貼り付け: 許可済み" : "自動貼り付けを許可する（アクセシビリティ）…"
     }
 
@@ -138,6 +162,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setStorageLimit(_ sender: NSMenuItem) {
         Settings.maxStorageMB = sender.tag
         store.enforceLimits()
+    }
+
+    /// 古い画像を軽くするまでの日数を変える。すぐ片付ける
+    @objc private func setCompressDays(_ sender: NSMenuItem) {
+        Settings.compressAfterDays = sender.tag
+        store.recompressOldImages(olderThanDays: sender.tag)
     }
 
     @objc private func openPairing() { pairing.show() }
@@ -228,6 +258,12 @@ enum Settings {
     }
 
     /// 履歴の容量の上限（MB）。0 なら上限なし。超えたらピン留め以外の古いものから消す
+    /// 古い画像（PNG）を軽い JPEG にするまでの日数。0 は「しない」
+    static var compressAfterDays: Int {
+        get { UserDefaults.standard.object(forKey: "compressAfterDays") as? Int ?? StoragePolicy.compressDefaultDays }
+        set { UserDefaults.standard.set(newValue, forKey: "compressAfterDays") }
+    }
+
     static var maxStorageMB: Int {
         get { UserDefaults.standard.object(forKey: "maxStorageMB") as? Int ?? StoragePolicy.defaultMB }
         set { UserDefaults.standard.set(newValue, forKey: "maxStorageMB") }

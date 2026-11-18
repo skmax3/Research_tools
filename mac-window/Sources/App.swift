@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .preset(let i):
                 if i < settings.presets.count { mover.apply(settings.presets[i]) } else { NSSound.beep() }
             case .toggleBarrier: break
+            case .tidy: mover.tidy()
             }
         }
     }
@@ -189,6 +190,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(it)
         }
         menu.addItem(item("今の配置をプリセットに保存（マウスのある画面）", #selector(saveCurrentLayout)))
+        menu.addItem(item("この画面を整理（手前の \(settings.tidyKeep) 個だけ残す）", #selector(runShortcut(_:)),
+                          shortcut: Shortcut.named("tidy")))
         menu.addItem(item("隠したアプリを全部表示", #selector(unhideAll)))
         menu.addItem(.separator())
 

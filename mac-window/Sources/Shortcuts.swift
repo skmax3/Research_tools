@@ -13,6 +13,7 @@ enum WindowAction {
     case ai
     case preset(Int)    // 0 始まり
     case toggleBarrier  // 境目でカーソルを止める機能のオン・オフ
+    case tidy           // 手前の数個のアプリだけ残し、ほかを隠す（マウスのある画面）
 }
 
 /// ショートカットの一覧。登録（App.swift）・メニュー・設定画面で同じものを使う。
@@ -62,6 +63,7 @@ struct Shortcut: Identifiable {
         s("panel", kVK_ANSI_W, co, "配置パネルを開く（マス目・プリセット・AI をマウスで）", .panel, key: "W"),
         s("ai", kVK_ANSI_A, co, "AI と並べる（作業中のウィンドウの横に AI を出す）", .ai, key: "A"),
         s("barrier", kVK_ANSI_B, co, "境目でカーソルを止める：オン・オフ", .toggleBarrier, key: "B"),
+        s("tidy", kVK_ANSI_H, co, "この画面を整理（手前の数個のアプリだけ残し、ほかを隠す）", .tidy, key: "H"),
     ]
 
     /// 配置プリセット 1〜9

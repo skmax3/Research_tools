@@ -337,3 +337,12 @@ enum HideRule {
         return onScreen.allSatisfy { Geometry.bestScreenIndex(for: $0, screens: screens) == target }
     }
 }
+
+/// 「この画面を整理」：手前から keep 個のアプリを残し、残りのうち隠せるものを返す
+enum TidyRule {
+    /// - order: その画面に見えているアプリ（手前から順。重なりなし）
+    /// - hideable: 隠してよいアプリ（ほかの画面・ほかのデスクトップにウィンドウがないもの）
+    static func toHide<T: Hashable>(order: [T], hideable: Set<T>, keep: Int) -> [T] {
+        order.dropFirst(max(keep, 1)).filter { hideable.contains($0) }
+    }
+}

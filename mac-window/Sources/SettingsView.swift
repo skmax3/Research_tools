@@ -541,6 +541,11 @@ struct GeneralTab: View {
                     Text("ステージマネージャがオンだと、アプリを手前に出すたびに前のアプリが左の帯にしまわれ、最後の 1 つしか残りません。配置案・プリセット・AI と並べる（2 つ以上のアプリ）のときだけオフにします。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                VStack(alignment: .leading, spacing: 2) {
+                    Stepper("この画面を整理：手前の \(settings.tidyKeep) 個のアプリだけ残す", value: $settings.tidyKeep, in: 1...8)
+                    Text("\(Shortcut.named("tidy").flatMap { settings.combo(for: $0)?.label } ?? "メニュー")で、マウスのある画面の今のデスクトップを整理します。残りのアプリは隠します（⌘H と同じ。Dock・⌘Tab・メニューの「隠したアプリを全部表示」で戻ります）。ほかの画面・ほかのデスクトップにもウィンドウがあるアプリは隠しません。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 HStack {
                     Text("覚えているアプリの最小サイズ：\(settings.minSizes.count) 個")
                     Spacer()

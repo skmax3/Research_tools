@@ -124,5 +124,28 @@ do {
     print("FAIL quick: 予期しないエラー \(error)")
 }
 
+// StoragePolicy（履歴の件数・容量の上限）
+do {
+    typealias E = StoragePolicy.Entry
+    let MB: Int64 = 1024 * 1024
+    func ids(_ s: Set<Int>) -> String { s.sorted().map(String.init).joined(separator: ",") }
+    // 件数だけ: ピン留め以外 2 件まで → 一番古い（3 番）を消す。ピン留め（1 番）は数えない
+    check("storage: 件数", ids(StoragePolicy.toRemove([E(pinned: false, bytes: 0), E(pinned: true, bytes: 0),
+                                                     E(pinned: false, bytes: 0), E(pinned: false, bytes: 0)],
+                                                    maxItems: 2, maxBytes: nil)), "3")
+    // 容量: 10MB 上限で 4+4+4+4 → 古い方から 2 件消して 8MB
+    check("storage: 容量", ids(StoragePolicy.toRemove(Array(repeating: E(pinned: false, bytes: 4 * MB), count: 4),
+                                                    maxItems: 500, maxBytes: 10 * MB)), "2,3")
+    // ピン留めは容量を超えていても消さない（合計には入る）
+    check("storage: ピン留めは残す", ids(StoragePolicy.toRemove([E(pinned: false, bytes: 1 * MB), E(pinned: false, bytes: 1 * MB),
+                                                         E(pinned: true, bytes: 9 * MB)],
+                                                        maxItems: 500, maxBytes: 10 * MB)), "1")
+    // テキストだけ（0 バイト）は容量のために消さない。いちばん新しい 1 件も消さない
+    check("storage: 新しい1件とテキストは残す", ids(StoragePolicy.toRemove([E(pinned: false, bytes: 20 * MB), E(pinned: false, bytes: 0)],
+                                                           maxItems: 500, maxBytes: 10 * MB)), "")
+    check("storage: 上限の表示", StoragePolicy.label(mb: 1024) + "/" + StoragePolicy.label(mb: 500) + "/" + StoragePolicy.label(mb: 0),
+          "1 GB/500 MB/上限なし")
+}
+
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")

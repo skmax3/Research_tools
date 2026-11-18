@@ -4,6 +4,8 @@
 Web 版（`clipboard/`）と違い、ネイティブアプリなのでバックグラウンドの記録・どこでも効くショートカット・自動貼り付けができる。
 
 - データは `~/Library/Application Support/ClipShelf/` にだけ保存し、外部には送らない。
+- 履歴は、ピン留め以外 **500 件まで・合計 1 GB まで**。超えたら、ピン留め以外の古いものから自動で消える（4K のスクショは 1 枚 5〜15 MB あるため）。
+  今の使用量はメニューバーのアイコン →「履歴の容量」で見られ、上限は 500 MB / 1 GB / 2 GB / 5 GB / 上限なし から選べる。残したいものはピン留め（⌘P）する。
 - パスワードマネージャーが「記録しないで」と印を付けたコピーは記録しない。
 - 必要環境: macOS 14 Sonoma 以降、Xcode（App Store から無料）。
 
@@ -72,6 +74,7 @@ iPhone で撮った写真・スクショやテキストを、AirDrop なしで M
   - `HotKey.swift`: グローバルショートカット（Carbon）
   - `PasteboardWatcher.swift`: クリップボードの監視
   - `ClipStore.swift`: 保存
+  - `StoragePolicy.swift`: 履歴の件数・容量の上限で、どれを消すかの計算（テストあり）
   - `PanelController.swift` / `PanelView.swift`: 下から出るパネル（SwiftUI）
   - `Paster.swift`: 貼り付け（CGEvent で ⌘V を送る）
   - `SyncCrypto.swift`: iPhone との暗号（`clip-send/` と共通。固定の値で一致をテスト）

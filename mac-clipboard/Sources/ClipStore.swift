@@ -106,6 +106,8 @@ final class ClipStore: ObservableObject {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         items = (try? decoder.decode([ClipItem].self, from: data)) ?? []
+        // 上限を超えて残っている古いもの（この機能を入れる前の分）を片付ける
+        enforceLimits()
     }
 
     private func save() {
@@ -174,18 +176,36 @@ final class ClipStore: ObservableObject {
         save()
     }
 
+    /// 件数（maxItems）と容量（Settings.maxStorageMB）の上限を超えた分を、古いものから消す。ピン留めは消さない
     private func trim() {
-        var count = 0
-        var keep: [ClipItem] = []
-        for item in items {
-            if item.pinned {
-                keep.append(item)
-            } else {
-                count += 1
-                if count <= maxItems { keep.append(item) } else { removeFiles(item) }
-            }
+        let mb = Settings.maxStorageMB
+        let entries = items.map { StoragePolicy.Entry(pinned: $0.pinned, bytes: bytes(of: $0)) }
+        let remove = StoragePolicy.toRemove(entries, maxItems: maxItems, maxBytes: mb > 0 ? Int64(mb) * 1024 * 1024 : nil)
+        guard !remove.isEmpty else { return }
+        for i in remove { removeFiles(items[i]) }
+        items = items.enumerated().filter { !remove.contains($0.offset) }.map(\.element)
+    }
+
+    /// 上限を変えたときなどに、すぐ片付ける
+    func enforceLimits() {
+        let before = items.count
+        trim()
+        if items.count != before { save() }
+    }
+
+    /// 1 件分のファイルの大きさ（画像・サムネイル・書式付きテキスト）
+    func bytes(of item: ClipItem) -> Int64 {
+        let jpg = dir.appendingPathComponent("images/\(item.id.uuidString).jpg")
+        let png = dir.appendingPathComponent("images/\(item.id.uuidString).png")
+        return [jpg, png, thumbURL(item.id), rtfURL(item.id)].reduce(Int64(0)) { sum, url in
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+            return sum + size
         }
-        items = keep
+    }
+
+    /// 保存フォルダ全体の使用量（バイト）
+    func totalBytes() -> Int64 {
+        items.reduce(Int64(0)) { $0 + bytes(of: $1) }
     }
 
     private func removeFiles(_ item: ClipItem) {

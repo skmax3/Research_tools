@@ -206,6 +206,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let barrierItem = item("境目でカーソルを止める", #selector(runShortcut(_:)), shortcut: Shortcut.named("barrier"))
         barrierItem.state = settings.edgeBarrier ? .on : .off
         menu.addItem(barrierItem)
+        let stageItem = item("ステージマネージャ", #selector(toggleStageManager))
+        stageItem.state = StageManager.isOn ? .on : .off
+        menu.addItem(stageItem)
         menu.addItem(.separator())
 
         menu.addItem(item("設定…", #selector(openSettings), key: ","))
@@ -271,6 +274,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func capture(_ screen: ScreenTarget) -> [Slot] {
         guard WindowMover.trusted else { askTrust(first: false); return [] }
         return mover.captureSlots(screen: screen)
+    }
+
+    /// ステージマネージャのオン・オフ（コントロールセンターのボタンと同じ）
+    @objc private func toggleStageManager() {
+        let on = !StageManager.isOn
+        if StageManager.set(on) {
+            if let area = WindowMover.mouseArea() { toast.show(on ? "ステージマネージャ：オン" : "ステージマネージャ：オフ", in: area) }
+        } else {
+            alert("ステージマネージャを切り替えられませんでした", "コントロールセンター（メニューバー右上）の「ステージマネージャ」から切り替えてください。")
+        }
     }
 
     @objc private func openAccessibilityFromMenu() { openAccessibility() }

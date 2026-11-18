@@ -20,6 +20,7 @@
 | `Geometry.swift` | 場所（画面に対する割合）→ ウィンドウの枠、座標変換 ※テストあり |
 | `Presets.swift` | 配置プリセットの形・初期値、よく使うアプリ ※テストあり |
 | `WindowMover.swift` | アクセシビリティ API でウィンドウを読む・動かす。フルスクリーン解除、AI と並べる、プリセット |
+| `StageManager.swift` | ステージマネージャのオン・オフを読む・切り替える（まとめて並べる前にオフにする） |
 | `EdgeLogic.swift` | 境目でカーソルを止める判定 ※テストあり |
 | `EdgeBarrierController.swift` | マウスの動きを受け取って、境目でカーソルを止める（イベントタップ） |
 | `GridSelector.swift` | マス目の図（設定画面と配置パネルで共通） |
@@ -43,4 +44,6 @@
 - 座標は 2 種類ある。macOS の画面（`NSScreen`・`NSWindow`）は左下原点・上向き。アクセシビリティ・`CGEvent` は左上原点・下向き。
   このアプリの計算は左上原点にそろえ、自分の窓を置くときだけ `WindowMover.toCocoa` で変換する。
 - `let area = area(for:)` のように、変数名とメソッド名が同じだと Swift ではエラーになる。`self.area(for:)` と書く。
+- ステージマネージャがオンだと、アプリを手前に出す（`raise`）たびに前のアプリが左の帯にしまわれる。
+  2 つ以上のアプリを並べる処理は `WindowMover.whenStageManagerOff` を通す。
 - 返答・UI・コメントは日本語。外部ライブラリは使わない。

@@ -220,6 +220,27 @@ final class WindowMover {
         }
     }
 
+    // MARK: - ステージマネージャ
+
+    /// 2 つ以上のアプリを並べるときに、ステージマネージャがオンならオフにしてから body を実行する。
+    /// オンのままだと、アプリを手前に出すたびに前のアプリが左の帯にしまわれて、最後の 1 つしか残らないため
+    func whenStageManagerOff(appCount: Int, _ body: @escaping () -> Void) {
+        guard appCount >= 2, StageManager.isOn else { body(); return }
+        guard settings.stageManagerOff else {
+            // オフにしない設定のときは、そのまま並べる（最後のアプリしか残らないことがある）
+            body()
+            return
+        }
+        if StageManager.set(false) {
+            if let area = Self.mouseArea() { onMoved?("ステージマネージャをオフにしました", area) }
+            // しまわれていたウィンドウが元の場所に戻るアニメーションを待つ
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { body() }
+        } else {
+            alert("ステージマネージャをオフにできませんでした",
+                  "コントロールセンター（メニューバー右上）の「ステージマネージャ」を押してオフにしてから、もう一度並べてください。")
+        }
+    }
+
     // MARK: - ショートカットの操作
 
     /// 動かしたときに呼ぶ（場所の名前と、その画面の範囲）。App.swift が画面に名前を一瞬出す
@@ -307,6 +328,13 @@ final class WindowMover {
             placeAI(bid: bid, zone: zones.ai, area: area, work: nil, attempt: 0)
             return
         }
+        // 2 つのアプリを並べるので、ステージマネージャがオンならオフにしてから
+        whenStageManagerOff(appCount: 2) { [weak self] in
+            self?.pairWork(work, bid: bid, zones: zones)
+        }
+    }
+
+    private func pairWork(_ work: AXUIElement, bid: String, zones: (ai: Zone, work: Zone)) {
         whenWindowed(work) { [weak self] in
             guard let self else { return }
             guard let area = Self.frame(of: work).flatMap({ self.area(for: $0) }) ?? Self.largestArea() else { return }
@@ -385,6 +413,13 @@ final class WindowMover {
     func arrange(_ items: [ArrangeItem], area: CGRect, name: String) {
         lastSnap = nil
         guard !items.isEmpty else { NSSound.beep(); return }
+        let apps = Set(items.map { $0.window.map { "pid:\(Self.pid(of: $0))" } ?? $0.bundleID })
+        whenStageManagerOff(appCount: apps.count) { [weak self] in
+            self?.arrangeNow(items, area: area, name: name)
+        }
+    }
+
+    private func arrangeNow(_ items: [ArrangeItem], area: CGRect, name: String) {
         var used: [AXUIElement] = items.compactMap(\.window)
         var queue = Array(items.reversed())
         var toFullScreen: [AXUIElement] = []

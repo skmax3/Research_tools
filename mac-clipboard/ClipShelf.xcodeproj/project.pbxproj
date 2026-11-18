@@ -19,6 +19,7 @@
 		B24879B5A07579EE14F93E30 /* SyncCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34882FD041000B693386239 /* SyncCrypto.swift */; };
 		C3613FADD8D8FB8193B765EB /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F972112E56A76BF7E2E7F5E /* App.swift */; };
 		DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4A671A69D6B43EB7E287C6 /* PanelView.swift */; };
+		EEBF020F5886F501E60577E6 /* StoragePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084076745281BAA2CF2554A /* StoragePolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		1330D7915932665C16E89969 /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 		1F972112E56A76BF7E2E7F5E /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		6448BE6D5317ECFF35A318F9 /* ClipShelf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipShelf.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7084076745281BAA2CF2554A /* StoragePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoragePolicy.swift; sourceTree = "<group>"; };
 		790567B2D8E715E343626452 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transforms.swift; sourceTree = "<group>"; };
 		A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingWindow.swift; sourceTree = "<group>"; };
@@ -50,6 +52,7 @@
 				EC4A671A69D6B43EB7E287C6 /* PanelView.swift */,
 				05E0ABB6ACA708F1A037B406 /* PasteboardWatcher.swift */,
 				ACA53AAEAF11A9172F9C350D /* Paster.swift */,
+				7084076745281BAA2CF2554A /* StoragePolicy.swift */,
 				0221C3630A551599FE0BA736 /* Sync.swift */,
 				A34882FD041000B693386239 /* SyncCrypto.swift */,
 				7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */,
@@ -170,6 +173,7 @@
 				DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */,
 				2789AF4E2E9CA467D0C6FBBC /* PasteboardWatcher.swift in Sources */,
 				A78C0F5B791E58A2B691E503 /* Paster.swift in Sources */,
+				EEBF020F5886F501E60577E6 /* StoragePolicy.swift in Sources */,
 				2D3147616E2AEAC6DF2DDC52 /* Sync.swift in Sources */,
 				B24879B5A07579EE14F93E30 /* SyncCrypto.swift in Sources */,
 				38AADA7EC6E88320F7DF944A /* Transforms.swift in Sources */,

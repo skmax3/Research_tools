@@ -35,7 +35,7 @@ PCがスリープ中はPC自身がファイルを出せないので、Webアプ�
   - 暗号の取り決めは `clip-send/index.html` の SYNC-BEGIN〜END に書いてあり、Mac 側（Swift）と同じ結果になることを固定の値でテストする。
   - 高速モード: iPhone の「ショートカット」から直接送れる（背面タップで約0.5秒）。サーバーが保存の直前に Mac の公開鍵で暗号化する（`clip-relay/src/quick.js`）。
   - iPhone は、コピーの検知もバックグラウンドでの受信も、アプリ・Web ページに許していない。完全な自動化には、有料の開発者登録が必要な iOS アプリが必要になる。
-  - Android・Windows: 同じ中継サーバーと `clip-send/`（ブラウザで動く）をそのまま使える見込み。Windows で受け取るアプリ（常駐）は未作成。Android の自動送信は、HTTP Shortcuts や Tasker などで高速モードの宛先に送れる。
+  - Android・Windows: 送るだけなら、高速モードの宛先に POST するだけで使える（`clip-relay/README.md` に例。curl は確認済み、PowerShell・Android は未確認）。受け取り（常駐アプリ）は未作成。まず iPhone → Mac が実機でスムーズに動くことを確かめてから進める。
   - 今後の候補: 動画の送信（今は1件8MBまで）、Mac のコピーを自動で iPhone へ送る
 - キーボード・マウスのキー配置を自由に変える Mac アプリ（クリップ棚で覚えた CGEvent・アクセシビリティ・常駐の技術を使う）
 - クリップボードの拡張（ボード分け、単位換算、スニペット、Mac⇄iPhone 受け渡し。`clipboard/SPEC.md` の「今後の候補」「保留」）

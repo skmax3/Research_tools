@@ -44,6 +44,14 @@ final class PairingWindowController {
     }
 }
 
+/// 手順の説明（小さい字・左寄せ）
+private func guide(_ text: String) -> some View {
+    Text(text)
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
+}
+
 struct PairingView: View {
     @ObservedObject var sync: SyncManager
     @State private var copied = false
@@ -103,20 +111,33 @@ struct PairingView: View {
                         quickCopied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { quickCopied = false }
                     }
-                    DisclosureGroup("ショートカットの作り方") {
-                        Text("""
+                    DisclosureGroup("① コピーしたものを送るショートカットの作り方") {
+                        guide("""
                         1. iPhone の「ショートカット」アプリで ＋ から新規作成
                         2. アクション「クリップボードを取得」を追加
                         3. アクション「URLの内容を取得」を追加し、URL にコピーしたアドレスを貼り付ける
                         4. 「URLの内容を取得」の ＞ を開き、方法を「POST」、リクエスト本文を「ファイル」にして、ファイルに「クリップボード」を選ぶ
-                        5. 名前を「Macへ送る」にして完了
-                        6. 設定 → アクセシビリティ → タッチ → 背面タップ → ダブルタップ →「Macへ送る」
+                        5. 最後に「通知を表示」を追加し、「送りました」と入力（送れたことが分かります）
+                        6. 名前を「Macへ送る」にして完了
                         """)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 4)
                     }
-                    .font(.callout)
+                    DisclosureGroup("② 写真・文章を共有メニューから送る（コピー不要）") {
+                        guide("""
+                        1. 新規作成して、右上の ⓘ →「共有シートに表示」をオン。受け入れる種類は「画像」「テキスト」「URL」だけにする
+                        2. アクション「各項目を繰り返す」（名前は OS により違うことがあります）を追加し、入力に「ショートカットの入力」を選ぶ
+                        3. 繰り返しの中に「URLの内容を取得」を追加。URL にアドレス、方法「POST」、本文「ファイル」、ファイルに「繰り返しの項目」
+                        4. 名前を「Macへ写真を送る」にして完了
+                        使うとき: 写真アプリで写真を選ぶ → 共有ボタン →「Macへ写真を送る」（複数枚もまとめて送れます）
+                        """)
+                    }
+                    DisclosureGroup("背面タップ以外の起動のしかた") {
+                        guide("""
+                        ・ホーム画面: ショートカットの ⓘ →「ホーム画面に追加」。アイコンをタップするだけ
+                        ・コントロールセンター: 画面右上から引き下げて長押し →「コントロールを追加」→「ショートカット」（iOS 18 以降）
+                        ・アクションボタン（iPhone 15 Pro 以降）: 設定 → アクションボタン →「ショートカット」
+                        ・ロック画面のウィジェット、「Hey Siri、Macへ送る」でも起動できます
+                        """)
+                    }
                     if sync.quickProblem {
                         Text("⚠️ この部屋では高速モードの鍵を登録できませんでした。下の「ペアリングを解除」で、やり直してください。")
                             .font(.caption)
@@ -135,6 +156,9 @@ struct PairingView: View {
                 Circle().fill(sync.connected ? Color.green : Color.orange).frame(width: 9, height: 9)
                 Text(sync.connected ? "中継サーバーに接続できています" : "中継サーバーに接続できていません")
                     .font(.callout)
+            }
+            if !sync.lastReceived.isEmpty {
+                Text(sync.lastReceived).font(.caption).foregroundStyle(.secondary)
             }
 
             Toggle("iPhone から届いたら、Mac のクリップボードにも入れる", isOn: Binding(

@@ -28,6 +28,29 @@ Mac のクリップ棚と iPhone の間で、**端末側で暗号化されたデ
 - 部屋ID を知っていると、送ることはできる（読むことはできない）。公開鍵は1回しか登録できないので、あとから自分の鍵に差し替えて読み取ることはできない。解除（部屋の削除）すると、送れなくなる。
 - 機密は送らない運用をおすすめする。
 
+## 他の端末から送る（Windows・Android・ターミナル）
+高速モードの宛先（クリップ棚のペアリング画面に表示される `https://…/r/<部屋ID>/quick`）は、ただの HTTP POST なので、本文を送れるものなら何でも使える。Mac のクリップ棚が受け取って、履歴に入れる（受け取れるのは今のところ Mac だけ）。
+
+| 端末・道具 | 方法 | 状態 |
+|---|---|---|
+| Mac・Linux のターミナル（`curl`） | `printf 'こんにちは' \| curl -X POST --data-binary @- "<宛先>"`（画像は `curl -X POST --data-binary @写真.png "<宛先>"`） | 動作確認済み（`-d` ではなく `--data-binary` を使う） |
+| Windows（PowerShell） | 下の例 | 未確認（書き方の例） |
+| Android | 無料アプリ「HTTP Shortcuts」で、POST・本文「クリップボード」（または共有されたファイル）のショートカットを作る | 未確認（方法の見当） |
+
+Windows（PowerShell）の例。日本語が文字化けしないように、先に出力の文字コードを UTF-8 にする。
+```powershell
+$OutputEncoding = [Text.UTF8Encoding]::new()
+Get-Clipboard -Raw | curl.exe -s -X POST --data-binary "@-" "<宛先>"
+```
+Windows でクリップボードの画像を送る例:
+```powershell
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$f = "$env:TEMP\clip.png"
+[System.Windows.Forms.Clipboard]::GetImage().Save($f, [System.Drawing.Imaging.ImageFormat]::Png)
+curl.exe -s -X POST --data-binary "@$f" "<宛先>"
+```
+送れるのはテキスト・JPEG・PNG・GIF・WebP・HEIC で、1件 8MB まで。宛先には部屋ID が入っているので、人に見せない。
+
 ## ローカルで試す
 ```
 cd clip-relay

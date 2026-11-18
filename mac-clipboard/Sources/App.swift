@@ -28,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // メニューの項目（チェック状態を更新するために保持）
     private let autoPasteItem = NSMenuItem(title: "選んだら自動で貼り付け", action: #selector(AppDelegate.toggleAutoPaste), keyEquivalent: "")
     private let pauseItem = NSMenuItem(title: "記録を一時停止", action: #selector(AppDelegate.togglePause), keyEquivalent: "")
+    /// 履歴の容量（使用量と上限）。サブメニューで上限を選ぶ
+    private let storageItem = NSMenuItem(title: "履歴の容量", action: nil, keyEquivalent: "")
+    private let storageMenu = NSMenu()
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
     private let pairItem = NSMenuItem(title: "iPhone とペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
@@ -100,6 +103,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(pairItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "保存フォルダを開く", action: #selector(openFolder), keyEquivalent: ""))
+        for mb in StoragePolicy.choicesMB {
+            let it = NSMenuItem(title: StoragePolicy.label(mb: mb), action: #selector(setStorageLimit(_:)), keyEquivalent: "")
+            it.tag = mb
+            it.target = self
+            storageMenu.addItem(it)
+        }
+        storageItem.submenu = storageMenu
+        menu.addItem(storageItem)
         menu.addItem(updateItem)
         menu.addItem(NSMenuItem(title: "ピン留め以外の履歴を消去…", action: #selector(clearHistory), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -115,10 +126,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateItem.isHidden = Self.updateScript == nil
         pairItem.title = sync.paired ? "iPhone との接続…" : "iPhone とペアリング…"
         pairItem.state = sync.paired && sync.connected ? .on : .off
+        let used = ByteCountFormatter.string(fromByteCount: store.totalBytes(), countStyle: .file)
+        storageItem.title = "履歴の容量: \(used) ／ 上限 \(StoragePolicy.label(mb: Settings.maxStorageMB))"
+        for it in storageMenu.items { it.state = it.tag == Settings.maxStorageMB ? .on : .off }
         trustItem.title = Paster.trusted ? "自動貼り付け: 許可済み" : "自動貼り付けを許可する（アクセシビリティ）…"
     }
 
     @objc private func openPanel() { panel.show() }
+
+    /// 容量の上限を変える。下げたときは、超えた分（ピン留め以外の古いもの）をすぐ消す
+    @objc private func setStorageLimit(_ sender: NSMenuItem) {
+        Settings.maxStorageMB = sender.tag
+        store.enforceLimits()
+    }
 
     @objc private func openPairing() { pairing.show() }
 
@@ -205,6 +225,12 @@ enum Settings {
     static var autoPaste: Bool {
         get { UserDefaults.standard.object(forKey: "autoPaste") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "autoPaste") }
+    }
+
+    /// 履歴の容量の上限（MB）。0 なら上限なし。超えたらピン留め以外の古いものから消す
+    static var maxStorageMB: Int {
+        get { UserDefaults.standard.object(forKey: "maxStorageMB") as? Int ?? StoragePolicy.defaultMB }
+        set { UserDefaults.standard.set(newValue, forKey: "maxStorageMB") }
     }
 
     /// iPhone から届いたものを、Mac のクリップボードにも入れる

@@ -195,6 +195,43 @@ final class WindowMover {
         Self.setFrame(w, r)
     }
 
+    // MARK: - アプリの最小サイズ
+
+    static func bundleID(of w: AXUIElement) -> String? {
+        NSRunningApplication(processIdentifier: pid(of: w))?.bundleIdentifier
+    }
+
+    /// (a) ウィンドウを一瞬だけ小さくして、止まった大きさを最小サイズとして覚える（すぐ元に戻す）。
+    /// フルスクリーン・しまってあるウィンドウは測らない
+    @discardableResult
+    func measureMinSize(_ w: AXUIElement) -> MinSize? {
+        guard let bid = Self.bundleID(of: w), !Self.isFullScreen(w), !Self.isMinimized(w),
+              let original = Self.frame(of: w) else { return nil }
+        var tiny = CGSize(width: 1, height: 1)
+        guard let v = AXValueCreate(.cgSize, &tiny) else { return nil }
+        AXUIElementSetAttributeValue(w, kAXSizeAttribute as CFString, v)
+        let shrunk = Self.frame(of: w)
+        Self.setFrame(w, original)
+        guard let shrunk, shrunk.width > 0, shrunk.height > 0 else { return nil }
+        let m = MinSize(w: Double(shrunk.width), h: Double(shrunk.height))
+        settings.minSizes[bid] = m
+        return m
+    }
+
+    /// (b) 置いたあとの実際の大きさから、最小サイズを覚え直す。
+    /// 指定より大きく残った → それが最小。指定どおり小さくなった → 覚えていた最小より小さくできる
+    func learnMinSize(_ w: AXUIElement, target: CGRect) {
+        guard let bid = Self.bundleID(of: w), let actual = Self.frame(of: w) else { return }
+        let known = settings.minSizes[bid]
+        var m = known ?? MinSize(w: 0, h: 0)
+        if actual.width > target.width + 2 { m.w = Double(actual.width) }
+        else if Double(target.width) < m.w - 1 { m.w = Double(actual.width) }
+        if actual.height > target.height + 2 { m.h = Double(actual.height) }
+        else if Double(target.height) < m.h - 1 { m.h = Double(actual.height) }
+        guard m != known, known != nil || m.w > 0 || m.h > 0 else { return }
+        settings.minSizes[bid] = m
+    }
+
     // MARK: - フルスクリーン
 
     static func isFullScreen(_ w: AXUIElement) -> Bool {
@@ -259,6 +296,7 @@ final class WindowMover {
                 i = (last.index + 1) % zones.count
             }
             self.move(w, to: frames[i])
+            self.learnMinSize(w, target: frames[i])
             self.keepInside(w, area: area)
             self.lastSnap = (w, zones, i, Date())
             self.onMoved?(zones[i].title, area)
@@ -309,6 +347,7 @@ final class WindowMover {
         whenWindowed(w) { [weak self] in
             guard let self else { return }
             self.move(w, to: self.frameFor(zone, in: area))
+            self.learnMinSize(w, target: self.frameFor(zone, in: area))
             self.keepInside(w, area: area)
             self.lastSnap = nil
             self.onMoved?(NamedZone.named(zone)?.title ?? "マス目で指定した場所", area)
@@ -473,6 +512,7 @@ final class WindowMover {
         for (i, p) in placed.enumerated() {
             guard let actual = Self.frame(of: p.window) else { continue }
             let target = frameFor(current[i], in: area)
+            learnMinSize(p.window, target: target)
             if actual.width > target.width + 2 {
                 let need = current[i].w + Double((actual.width - target.width) / area.width)
                 if need > minW[i] + 1e-4 { minW[i] = need; grew = true }

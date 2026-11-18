@@ -42,7 +42,7 @@ final class GridPickerController {
         let mouse = NSEvent.mouseLocation
         let index = NSScreen.screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) } ?? 0
 
-        let model = LayoutBoardModel(settings: mover.settings, screens: screens, screenIndex: min(index, screens.count - 1),
+        let model = LayoutBoardModel(mover: mover, screens: screens, screenIndex: min(index, screens.count - 1),
                                      target: w, targetName: w == nil ? nil : NSWorkspace.shared.frontmostApplication?.localizedName,
                                      targetZone: zone, targetArea: targetArea)
         self.model = model
@@ -77,6 +77,8 @@ final class GridPickerController {
         p.setFrameOrigin(NSPoint(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2))
         panel = p
         p.makeKeyAndOrderFront(nil)
+        // 最小サイズがまだ分からないアプリを測る（パネルが出てから。各アプリ 1 回だけ）
+        DispatchQueue.main.async { [weak model] in model?.measureUnknown() }
         // ほかの場所をクリックしたら閉じる
         observer = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: p, queue: .main) {
             [weak self] _ in self?.close()

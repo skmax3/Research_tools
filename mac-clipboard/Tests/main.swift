@@ -147,5 +147,10 @@ do {
           "1 GB/500 MB/上限なし")
 }
 
+// MARK: - 大きい順（履歴の一覧）
+check("大きい順: 並び", StoragePolicy.sizeOrder([5, 0, 9, 5, 0]).map(String.init).joined(separator: ","), "2,0,3,1,4")
+check("大きい順: 空", String(StoragePolicy.sizeOrder([]).count), "0")
+check("大きい順: すべて同じ", StoragePolicy.sizeOrder([3, 3, 3]).map(String.init).joined(separator: ","), "0,1,2")
+
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")

@@ -39,7 +39,7 @@ enum ClipCategory: String, CaseIterable, Identifiable {
 
 /// 並び順・絞り込み
 enum ClipFilter {
-    static func apply(_ items: [ClipItem], state: PanelState) -> [ClipItem] {
+    static func apply(_ items: [ClipItem], state: PanelState, size: (ClipItem) -> Int64 = { _ in 0 }) -> [ClipItem] {
         var list = items.filter { $0.pinned } + items.filter { !$0.pinned }
         if let k = state.kind { list = list.filter { $0.category == k } }
         if let a = state.app { list = list.filter { $0.appKey == a } }
@@ -47,7 +47,11 @@ enum ClipFilter {
         if !q.isEmpty {
             list = list.filter { $0.text.lowercased().contains(q) || $0.app.lowercased().contains(q) }
         }
-        if state.sortByApp {
+        if state.sortBySize {
+            // 保存している大きさの順（同じ大きさは今の並びのまま）
+            let order = StoragePolicy.sizeOrder(list.map(size))
+            list = order.map { list[$0] }
+        } else if state.sortByApp {
             // アプリ名でまとめる（同じアプリの中は新しい順のまま）
             list = list.enumerated()
                 .sorted { ($0.element.app.lowercased(), $0.offset) < ($1.element.app.lowercased(), $1.offset) }
@@ -97,7 +101,7 @@ struct PanelView: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
-        let items = ClipFilter.apply(store.items, state: state)
+        let items = ClipFilter.apply(store.items, state: state, size: store.cachedBytes(of:))
         VStack(alignment: .leading, spacing: 8) {
             header
             if items.isEmpty {
@@ -143,6 +147,12 @@ struct PanelView: View {
             }
             Chip(title: "アプリ順", symbol: "arrow.up.arrow.down", color: .gray, on: state.sortByApp) {
                 state.sortByApp.toggle()
+                if state.sortByApp { state.sortBySize = false }
+            }
+            Chip(title: "大きい順", symbol: "externaldrive", color: .gray, on: state.sortBySize) {
+                state.sortBySize.toggle()
+                if state.sortBySize { state.sortByApp = false }
+                state.selected = 0
             }
         }
         .padding(.horizontal, 18)
@@ -154,7 +164,7 @@ struct PanelView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        CardView(item: item, index: index, isCursor: index == state.selected,
+                        CardView(item: item, index: index, isCursor: index == state.selected, showSize: state.sortBySize,
                                  pickOrder: state.picked.firstIndex(of: item.id).map { $0 + 1 },
                                  store: store, onTogglePick: { state.togglePick(item.id) })
                             .id(item.id)
@@ -217,14 +227,27 @@ struct PanelView: View {
                     .lineLimit(1)
                 Button("許可の設定を開く") { actions.openTrust() }
                     .buttonStyle(.borderedProminent)
+            } else if state.picked.isEmpty && state.sortBySize {
+                Image(systemName: "externaldrive").foregroundStyle(.secondary)
+                Text("容量 \(sizeString(store.cachedTotalBytes())) ／ 上限 \(StoragePolicy.label(mb: Settings.maxStorageMB))　大きい順です。⌘クリック・Space・⇧← → で選んで、⌘⌫ で削除（2回押して確定）")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary.opacity(0.75))
+                    .lineLimit(1)
             } else if state.picked.isEmpty {
                 Text("クリック 選ぶ　ダブルクリック／Enter 貼り付け　⌘クリック・Space 複数選択　⌘T・右クリック 変換　⌘I iPhone へ　Tab 種類　⌘1〜9　⌘P ピン　⌘⌫ 削除　Esc")
                     .font(.system(size: 12))
                     .foregroundStyle(.primary.opacity(0.75))
                     .lineLimit(1)
             } else {
-                Text("\(state.picked.count)件を選択中（番号の順に貼ります）")
+                Text("\(state.picked.count)件を選択中（\(sizeString(pickedBytes))）")
                     .font(.system(size: 13, weight: .semibold))
+                if state.confirmDelete {
+                    Button { actions.deletePicked() } label: {
+                        Label("もう一度押すと削除（\(state.picked.count)件・\(sizeString(pickedBytes))）", systemImage: "trash")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
                 Button { actions.pastePicked(false) } label: {
                     Label("順番に貼り付け　Enter", systemImage: "list.number")
                 }
@@ -237,6 +260,11 @@ struct PanelView: View {
                 } label: {
                     Label("iPhone に送る　⌘I", systemImage: "iphone")
                 }
+                if !state.confirmDelete {
+                    Button { actions.deletePicked() } label: {
+                        Label("削除　⌘⌫", systemImage: "trash")
+                    }
+                }
                 Button { state.picked = [] } label: {
                     Label("選択を解除　Esc", systemImage: "xmark")
                 }
@@ -245,6 +273,15 @@ struct PanelView: View {
         }
         .padding(.horizontal, 18)
         .frame(height: 28)
+    }
+
+    private var pickedBytes: Int64 {
+        state.picked.compactMap { id in store.items.first { $0.id == id } }
+            .reduce(Int64(0)) { $0 + store.cachedBytes(of: $1) }
+    }
+
+    private func sizeString(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     /// 他のアプリへドラッグして渡す
@@ -316,6 +353,8 @@ struct CardView: View {
     let item: ClipItem
     let index: Int
     let isCursor: Bool
+    /// 保存している大きさを、カードの上に大きく見せる（大きい順のとき）
+    let showSize: Bool
     let pickOrder: Int?
     let store: ClipStore
     let onTogglePick: () -> Void
@@ -337,6 +376,10 @@ struct CardView: View {
                     Text("書式").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
+                if showSize, store.cachedBytes(of: item) > 0 {
+                    Text(ByteCountFormatter.string(fromByteCount: store.cachedBytes(of: item), countStyle: .file))
+                        .font(.system(size: 12, weight: .bold).monospacedDigit())
+                }
                 if item.pinned {
                     Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(.orange)
                 }
@@ -446,7 +489,9 @@ struct CardView: View {
         let from = item.app.isEmpty ? "" : "\(item.app)・"
         switch item.kind {
         case .text: return "\(from)\(item.text.count)文字・\(when)"
-        case .image: return "\(from)\(item.width)×\(item.height)・\(when)"
+        case .image:
+            let size = ByteCountFormatter.string(fromByteCount: store.cachedBytes(of: item), countStyle: .file)
+            return "\(from)\(item.width)×\(item.height)・\(size)・\(when)"
         case .files:
             if item.category == .video, item.duration > 0 {
                 return "\(from)\(Self.timeText(item.duration))\(item.width > 0 ? "・\(item.width)×\(item.height)" : "")・\(when)"

@@ -32,6 +32,11 @@ enum StoragePolicy {
         return remove
     }
 
+    /// 大きい順に並べたときの番号（bytes は今の並びでの大きさ）。同じ大きさ・0 のものは、今の並びのまま後ろに置く
+    static func sizeOrder(_ bytes: [Int64]) -> [Int] {
+        bytes.indices.sorted { a, b in bytes[a] != bytes[b] ? bytes[a] > bytes[b] : a < b }
+    }
+
     /// 選べる容量の上限（MB）。0 は「上限なし」
     static let choicesMB = [500, 1024, 2048, 5120, 0]
     static let defaultMB = 1024

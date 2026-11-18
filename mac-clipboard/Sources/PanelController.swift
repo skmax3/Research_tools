@@ -22,7 +22,9 @@ final class PanelState: ObservableObject {
     /// カーソル（枠が付いているカード）の位置
     @Published var selected = 0
     /// 複数選択した項目（選んだ順）
-    @Published var picked: [UUID] = []
+    @Published var picked: [UUID] = [] {
+        didSet { confirmDelete = false }  // 選び直したら、削除の確認はやり直し
+    }
     /// 種類で絞り込み（nil ならすべて）
     @Published var kind: ClipCategory? {
         didSet { if kind != oldValue { selected = 0 } }
@@ -33,6 +35,10 @@ final class PanelState: ObservableObject {
     }
     /// アプリごとにまとめて並べる
     @Published var sortByApp = false
+    /// 大きいものから並べる（保存している画像などの大きさ）
+    @Published var sortBySize = false
+    /// 選んだものを削除する、2回目の確認待ち
+    @Published var confirmDelete = false
     @Published var focusToken = 0
     /// 自動貼り付けがオンなのに、アクセシビリティの許可がない
     @Published var needsTrust = false
@@ -49,6 +55,7 @@ struct PanelActions {
     var transform: (ClipItem, TextTransform) -> Void
     var openTrust: () -> Void
     var sendToPhone: ([ClipItem]) -> Void
+    var deletePicked: () -> Void
 }
 
 /// 画面の下からせり上がる履歴パネル
@@ -103,7 +110,8 @@ final class PanelController: NSObject, NSWindowDelegate {
                     NSWorkspace.shared.open(url)
                 }
             },
-            sendToPhone: { [weak self] items in self?.sendToPhone(items) }
+            sendToPhone: { [weak self] items in self?.sendToPhone(items) },
+            deletePicked: { [weak self] in self?.requestDeletePicked() }
         )
         let host = NSHostingView(rootView: PanelView(store: store, state: state, actions: actions))
         host.frame = effect.bounds
@@ -167,7 +175,28 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     // MARK: - 貼り付け
 
-    private var currentItems: [ClipItem] { ClipFilter.apply(store.items, state: state) }
+    private var currentItems: [ClipItem] { ClipFilter.apply(store.items, state: state, size: store.cachedBytes(of:)) }
+
+    private var deleteToken = 0
+
+    /// 選んだものを削除する。間違えて消さないよう、1回目は確認の表示にして、4秒以内にもう一度押すと消す
+    private func requestDeletePicked() {
+        guard !state.picked.isEmpty else { return }
+        if state.confirmDelete {
+            let ids = Set(state.picked)
+            state.picked = []
+            store.delete(ids: ids)
+            state.selected = min(state.selected, max(0, currentItems.count - 1))
+            return
+        }
+        state.confirmDelete = true
+        deleteToken += 1
+        let token = deleteToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self, self.deleteToken == token else { return }
+            self.state.confirmDelete = false
+        }
+    }
 
     /// 自動貼り付けができるか確認。できなければ（最初の1回だけ）許可を求める
     private func canAutoPaste() -> Bool {
@@ -331,8 +360,10 @@ final class PanelController: NSObject, NSWindowDelegate {
         case 0 where cmd:  // ⌘A: 表示中をすべて選択
             state.picked = items.map(\.id)
             return true
-        case 51 where cmd:  // ⌘⌫ 削除
-            if let cur {
+        case 51 where cmd:  // ⌘⌫ 削除（複数選択中は、選んだもの全部。2回押して確定）
+            if !state.picked.isEmpty {
+                requestDeletePicked()
+            } else if let cur {
                 store.delete(cur.id)
                 state.picked.removeAll { $0 == cur.id }
                 state.selected = min(state.selected, max(0, items.count - 2))

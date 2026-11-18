@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import ServiceManagement
 import SwiftUI
@@ -38,7 +39,7 @@ final class SettingsWindowController {
     }
 }
 
-enum SettingsTab: Hashable { case presets, ai, general }
+enum SettingsTab: Hashable { case presets, ai, shortcuts, general }
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
@@ -53,8 +54,11 @@ struct SettingsView: View {
             AITab(settings: settings, actions: actions)
                 .tabItem { Label("AI と並べる", systemImage: "sparkles") }
                 .tag(SettingsTab.ai)
+            ShortcutsTab(settings: settings)
+                .tabItem { Label("ショートカット", systemImage: "keyboard") }
+                .tag(SettingsTab.shortcuts)
             GeneralTab(settings: settings, actions: actions)
-                .tabItem { Label("一般・ショートカット", systemImage: "keyboard") }
+                .tabItem { Label("カーソル・動き方", systemImage: "cursorarrow.motionlines") }
                 .tag(SettingsTab.general)
         }
         .padding()
@@ -159,7 +163,7 @@ struct PresetsTab: View {
                 List(selection: $selected) {
                     ForEach(Array(settings.presets.enumerated()), id: \.element.id) { i, p in
                         HStack(spacing: 6) {
-                            Text(i < 9 ? "⌃⌥\(i + 1)" : "　")
+                            Text(presetKeyLabel(i) ?? "　")
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
                                 .frame(width: 38, alignment: .leading)
@@ -188,13 +192,13 @@ struct PresetsTab: View {
                         .disabled(selected == nil)
                 }
                 .frame(width: 250)
-                Text("上から順に ⌃⌥1〜9 で呼び出せます。ドラッグでも並べ替えられます。")
+                Text("上から順に 1〜9 番のショートカット（初期は ⌃⌥1〜9）で呼び出せます。ドラッグでも並べ替えられます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 250, alignment: .leading)
             }
             if let id = selected, let i = settings.presets.firstIndex(where: { $0.id == id }) {
-                PresetEditor(preset: binding(for: id), index: i, actions: actions)
+                PresetEditor(preset: binding(for: id), shortcutLabel: presetKeyLabel(i), actions: actions)
                     .id(id)
             } else {
                 Text("左の一覧からプリセットを選んでください")
@@ -203,6 +207,10 @@ struct PresetsTab: View {
             }
         }
         .onAppear { if selected == nil { selected = settings.presets.first?.id } }
+    }
+
+    private func presetKeyLabel(_ i: Int) -> String? {
+        i < Shortcut.presetKeys.count ? settings.combo(for: Shortcut.presetKeys[i])?.label : nil
     }
 
     /// 削除しても落ちないように、番号ではなく ID でプリセットを探す
@@ -249,7 +257,7 @@ struct PresetsTab: View {
 
 struct PresetEditor: View {
     @Binding var preset: Preset
-    let index: Int
+    let shortcutLabel: String?
     let actions: SettingsActions
     @State private var selectedSlot: UUID?
     @State private var confirmCapture = false
@@ -260,8 +268,8 @@ struct PresetEditor: View {
                 TextField("プリセットの名前", text: $preset.name)
                     .textFieldStyle(.roundedBorder)
                     .font(.title3)
-                if index < 9 {
-                    Text("⌃⌥\(index + 1)")
+                if let shortcutLabel {
+                    Text(shortcutLabel)
                         .font(.body.monospaced())
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -449,7 +457,7 @@ struct AITab: View {
                 }
                 .pickerStyle(.segmented)
             } header: {
-                Text("⌃⌥A で、いま作業中のウィンドウの横に AI のウィンドウを出します")
+                Text("\(Shortcut.named("ai").flatMap { settings.combo(for: $0)?.label } ?? "メニュー") で、いま作業中のウィンドウの横に AI のウィンドウを出します")
             } footer: {
                 Text("AI が起動していなければ起動します。ブラウザで AI を使う場合は、そのブラウザを選んでください（ブラウザの手前のウィンドウが AI 側に来ます）。")
                     .font(.caption)
@@ -474,7 +482,7 @@ struct AITab: View {
     }
 }
 
-// MARK: - 一般
+// MARK: - カーソル・動き方
 
 struct GeneralTab: View {
     @ObservedObject var settings: AppSettings
@@ -485,12 +493,35 @@ struct GeneralTab: View {
 
     var body: some View {
         Form {
-            Section("見た目") {
+            Section {
+                Toggle("画面の境目でカーソルを少し止める", isOn: $settings.edgeBarrier)
+                if settings.edgeBarrier {
+                    HStack {
+                        Slider(value: $settings.edgeHold, in: 0.1...1.5, step: 0.1) { Text("止める時間") }
+                        Text(String(format: "%.1f 秒", settings.edgeHold)).monospacedDigit().frame(width: 60, alignment: .trailing)
+                    }
+                    Picker("止める境目", selection: $settings.edgeAllSides) {
+                        Text("下だけ（Dock が下）").tag(false)
+                        Text("上下左右すべて").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            } header: {
+                Text("境目でカーソルを止める")
+            } footer: {
+                Text("4K モニターの下に MacBook を置いていると、Dock を出そうとしたカーソルが MacBook 側へ抜けてしまいます。オンにすると、境目でカーソルがいったん止まって Dock が出ます。そのまま押し続ければ下の画面へ移れます。\(Shortcut.named("barrier").flatMap { settings.combo(for: $0)?.label } ?? "") でオン・オフできます。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("ウィンドウの動かし方") {
                 HStack {
                     Slider(value: $settings.gap, in: 0...24, step: 2) { Text("ウィンドウのすき間") }
                     Text("\(Int(settings.gap)) pt").monospacedDigit().frame(width: 50, alignment: .trailing)
                 }
+                Toggle("フルスクリーンのウィンドウは、解除してから並べる", isOn: $settings.exitFullScreen)
+                Toggle("動かしたとき、場所の名前を画面に一瞬出す", isOn: $settings.showToast)
             }
+
             Section("起動と許可") {
                 Toggle("ログイン時に起動", isOn: $loginOn)
                     .onChange(of: loginOn) { _, on in
@@ -514,14 +545,6 @@ struct GeneralTab: View {
                     trusted = WindowMover.trusted
                 }
             }
-            Section("ショートカット（どのアプリを使っていても効きます）") {
-                ShortcutTable(items: Shortcut.windowKeys + Shortcut.toolKeys)
-                Text("⌃⌥1〜9: 配置プリセット（「配置プリセット」の一覧の上から順）")
-                    .font(.callout)
-                Text("⌃ = control、⌥ = option、⌘ = command。ほかのウィンドウ整理アプリ（Rectangle など）と同じキーは同時に使えません。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
             Section {
                 Button("配置プリセットを最初の状態に戻す…") { confirmReset = true }
             }
@@ -534,19 +557,135 @@ struct GeneralTab: View {
     }
 }
 
-struct ShortcutTable: View {
-    let items: [Shortcut]
+// MARK: - ショートカット
+
+struct ShortcutsTab: View {
+    @ObservedObject var settings: AppSettings
+    @State private var recordingID: String?
+    @State private var confirmReset = false
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-            ForEach(items) { s in
-                GridRow {
-                    Text(s.label)
-                        .font(.body.monospaced())
-                        .frame(width: 80, alignment: .leading)
-                    Text(s.title)
+        Form {
+            Section {
+                Text("キーの部分を押してから、新しいキーの組み合わせを押すと変えられます（esc でやめる、⌫ でオフ）。⌃ control・⌥ option・⌘ command のどれかと一緒に押してください。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Section("手前のウィンドウを動かす") {
+                ForEach(Shortcut.windowKeys) { s in row(s, title: s.title) }
+            }
+            Section("道具") {
+                ForEach(Shortcut.toolKeys) { s in row(s, title: s.title) }
+            }
+            Section("配置プリセット（「配置プリセット」の一覧の上から順）") {
+                ForEach(Array(Shortcut.presetKeys.enumerated()), id: \.element.id) { i, s in
+                    row(s, title: i < settings.presets.count ? "\(i + 1). \(settings.presets[i].name)" : "\(i + 1).（プリセットなし）")
                 }
             }
+            Section {
+                Button("すべてのショートカットを最初の状態に戻す…") { confirmReset = true }
+            } footer: {
+                Text("ほかのアプリ（Rectangle など）と同じキーは同時に使えません。登録できなかったキーは、起動時にお知らせします。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
+        .formStyle(.grouped)
+        .onChange(of: recordingID) { _, id in settings.isRecordingShortcut = id != nil }
+        .onDisappear { recordingID = nil }
+        .confirmationDialog("すべてのショートカットを最初の状態に戻しますか？", isPresented: $confirmReset) {
+            Button("戻す", role: .destructive) { settings.resetAllShortcuts() }
+            Button("キャンセル", role: .cancel) {}
+        }
+    }
+
+    private func row(_ s: Shortcut, title: String) -> some View {
+        ShortcutRow(settings: settings, shortcut: s, title: title, recordingID: $recordingID)
+    }
+}
+
+/// ショートカット 1 行。キーの部分を押すと、次に押したキーを記録する
+struct ShortcutRow: View {
+    @ObservedObject var settings: AppSettings
+    let shortcut: Shortcut
+    let title: String
+    @Binding var recordingID: String?
+    @State private var message: String?
+    @State private var monitor: Any?
+
+    private var recording: Bool { recordingID == shortcut.id }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title).lineLimit(2)
+            Spacer()
+            if let message {
+                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(2)
+            }
+            Button {
+                if recording { recordingID = nil } else { recordingID = shortcut.id }
+            } label: {
+                Text(recording ? "キーを押す…" : (settings.combo(for: shortcut)?.label ?? "オフ"))
+                    .font(.body.monospaced())
+                    .frame(minWidth: 96)
+            }
+            .buttonStyle(.bordered)
+            .tint(recording ? .accentColor : nil)
+            Menu {
+                Button("最初のキーに戻す（\(shortcut.defaultCombo?.label ?? "なし")）") {
+                    settings.resetCombo(for: shortcut)
+                    message = nil
+                }
+                Button("オフにする") {
+                    settings.setCombo(nil, for: shortcut)
+                    message = nil
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .onChange(of: recordingID) { _, id in
+            if id == shortcut.id { startMonitor() } else { stopMonitor() }
+        }
+        .onDisappear { stopMonitor() }
+    }
+
+    private func startMonitor() {
+        stopMonitor()
+        message = nil
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handle(event)
+            return nil  // 記録中のキーは、ほかに渡さない
+        }
+    }
+
+    private func stopMonitor() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    private func handle(_ event: NSEvent) {
+        let c = KeyCombo(event: event)
+        if c.keyCode == kVK_Escape && !c.hasModifier {
+            recordingID = nil
+            return
+        }
+        if (c.keyCode == kVK_Delete || c.keyCode == kVK_ForwardDelete) && !c.hasModifier {
+            settings.setCombo(nil, for: shortcut)
+            recordingID = nil
+            return
+        }
+        guard c.hasModifier || c.isFunctionKey else {
+            message = "⌃・⌥・⌘ のどれかと一緒に押してください"
+            return
+        }
+        if let other = settings.conflict(c, except: shortcut) {
+            message = "「\(other.title)」と同じキーです"
+            return
+        }
+        settings.setCombo(c, for: shortcut)
+        message = nil
+        recordingID = nil
     }
 }

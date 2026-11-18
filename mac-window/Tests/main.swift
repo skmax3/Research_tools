@@ -1,5 +1,6 @@
-// Geometry.swift / Presets.swift の確認（GitHub Actions で実行:
-//   swiftc Sources/Geometry.swift Sources/Presets.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
+// 計算部分の確認（GitHub Actions で実行:
+//   swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -103,6 +104,50 @@ let old = #"[{"name":"古い","slots":[{"bundleID":"com.apple.Safari","zone":{"x
 let oldDecoded = try? JSONDecoder().decode([Preset].self, from: Data(old.utf8))
 check("古いデータ", oldDecoded?.first?.slots.first?.appName == "com.apple.Safari"
       && oldDecoded?.first?.screen == .largest && oldDecoded?.first?.slots.first?.launch == false)
+
+// 境目でカーソルを止める（Dell 2560×1440 の下に MacBook 1470×956、中央寄せ）
+let dell = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+let mac = CGRect(x: 545, y: 1440, width: 1470, height: 956)
+let both = [dell, mac]
+var eb = EdgeBarrier()
+eb.hold = 0.4
+let t0 = Date(timeIntervalSince1970: 1000)
+let s1 = eb.filter(from: CGPoint(x: 1000, y: 1430), to: CGPoint(x: 1000, y: 1450), screens: both, now: t0)
+check("境目 止める", s1 == CGPoint(x: 1000, y: 1439), "\(String(describing: s1))")
+let s2 = eb.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1446), screens: both, now: t0.addingTimeInterval(0.2))
+check("境目 押している間は止める", s2 == CGPoint(x: 1000, y: 1439))
+let s3 = eb.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1446), screens: both, now: t0.addingTimeInterval(0.45))
+check("境目 押し続けたら通す", s3 == nil)
+// 通り抜けたあと、戻ってきてまた押すと、もう一度止まる（少し時間を空ける）
+let s4 = eb.filter(from: CGPoint(x: 1000, y: 1430), to: CGPoint(x: 1000, y: 1445), screens: both, now: t0.addingTimeInterval(2))
+check("境目 もう一度止まる", s4 == CGPoint(x: 1000, y: 1439))
+// 押すのをやめて時間がたつと、数え直し
+var eb2 = EdgeBarrier()
+_ = eb2.filter(from: CGPoint(x: 1000, y: 1430), to: CGPoint(x: 1000, y: 1445), screens: both, now: t0)
+_ = eb2.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1010, y: 1435), screens: both, now: t0.addingTimeInterval(0.3))
+let s5 = eb2.filter(from: CGPoint(x: 1010, y: 1435), to: CGPoint(x: 1010, y: 1445), screens: both, now: t0.addingTimeInterval(1.2))
+check("境目 数え直し", s5 == CGPoint(x: 1010, y: 1439))
+// 下に画面がない所（MacBook の横）は、macOS が止めるので何もしない
+var eb3 = EdgeBarrier()
+check("境目 下に画面なし", eb3.filter(from: CGPoint(x: 100, y: 1430), to: CGPoint(x: 100, y: 1445), screens: both, now: t0) == nil)
+// 上へ戻るとき（MacBook → Dell）は止めない（下だけの設定）
+check("境目 上へは止めない", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0) == nil)
+// 上下左右すべての設定なら、上へも止める
+eb3.allSides = true
+check("境目 すべての境目", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+      == CGPoint(x: 1000, y: 1440))
+// 同じ画面の中の動きは何もしない
+check("境目 画面の中", eb3.filter(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 20, y: 20), screens: both, now: t0) == nil)
+
+// キーの表示
+check("キー表示 矢印", KeyCombo(kVK_LeftArrow, KeyCombo.co).label == "⌃⌥←")
+check("キー表示 文字", KeyCombo(kVK_ANSI_D, KeyCombo.co | cmdKey | shiftKey, "D").label == "⌃⌥⇧⌘D")
+check("メニュー用 文字", KeyCombo(kVK_ANSI_D, KeyCombo.co, "D").menuKey == "d")
+check("メニュー用 リターン", KeyCombo(kVK_Return, KeyCombo.co).menuKey == "\r")
+check("F キー", KeyCombo(kVK_F5, 0).label == "F5" && KeyCombo(kVK_F5, 0).isFunctionKey)
+check("修飾キーの判定", !KeyCombo(kVK_ANSI_A, shiftKey, "A").hasModifier && KeyCombo(kVK_ANSI_A, optionKey, "A").hasModifier)
+let kc = KeyCombo(kVK_ANSI_W, KeyCombo.co, "W")
+check("キー 保存と読み込み", (try? JSONDecoder().decode(KeyCombo.self, from: JSONEncoder().encode(kc))) == kc)
 
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

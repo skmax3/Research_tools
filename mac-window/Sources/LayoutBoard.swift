@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// 枠に入っているもの
@@ -33,6 +34,8 @@ final class LayoutBoardModel: ObservableObject {
 
     let screens: [WindowMover.ScreenInfo]
     private let settings: AppSettings
+    private let mover: WindowMover
+    private var sub: AnyCancellable?
 
     // 「手前のウィンドウだけ動かす」用
     let target: AXUIElement?
@@ -40,9 +43,10 @@ final class LayoutBoardModel: ObservableObject {
     let targetZone: Zone?
     let targetArea: CGRect?
 
-    init(settings: AppSettings, screens: [WindowMover.ScreenInfo], screenIndex: Int,
+    init(mover: WindowMover, screens: [WindowMover.ScreenInfo], screenIndex: Int,
          target: AXUIElement?, targetName: String?, targetZone: Zone?, targetArea: CGRect?) {
-        self.settings = settings
+        self.mover = mover
+        self.settings = mover.settings
         self.screens = screens
         self.screenIndex = screenIndex
         self.target = target
@@ -54,6 +58,8 @@ final class LayoutBoardModel: ObservableObject {
         choiceID = screens.indices.contains(screenIndex) && screens[screenIndex].builtin ? "full" : "thirds"
         rebuildChoices()
         autoFill()
+        // 最小サイズを測った・覚えたら、警告とおすすめを描き直す
+        sub = settings.$minSizes.dropFirst().receive(on: RunLoop.main).sink { [weak self] _ in self?.objectWillChange.send() }
     }
 
     var choice: Choice { choices.first { $0.id == choiceID } ?? choices[0] }
@@ -73,13 +79,21 @@ final class LayoutBoardModel: ObservableObject {
     }
 
     func choose(_ id: String) {
+        let f = simulatedFills(for: choices.first { $0.id == id } ?? choice, carry: fills)
         choiceID = id
-        autoFill()
+        fills = f
+        selectedSlot = f.firstIndex(of: .empty) ?? 0
     }
 
     /// 枠に、それらしいウィンドウを最初から入れておく（あとで入れ替えればよい）
     func autoFill() {
-        let c = choice
+        fills = simulatedFills(for: choice, carry: [])
+        selectedSlot = fills.firstIndex(of: .empty) ?? 0
+    }
+
+    /// 配置案 c を選んだときに枠に入るもの。
+    /// プリセットはそのアプリ。ひな形は、いま枠に入れているもの（carry）を順に引き継ぎ、残りを手前のウィンドウで埋める
+    func simulatedFills(for c: Choice, carry: [SlotFill]) -> [SlotFill] {
         var f = Array(repeating: SlotFill.empty, count: c.zones.count)
         var used = Set<String>()
         if let p = c.preset {
@@ -93,12 +107,95 @@ final class LayoutBoardModel: ObservableObject {
                 }
             }
         } else {
-            // ひな形: 手前にあるウィンドウから順に入れる
-            let pool = candidates.filter { $0.window != nil && !$0.isMinimized }
-            for i in f.indices where i < pool.count { f[i] = .candidate(pool[i].id) }
+            // ひな形: いま入れているものを引き継ぎ、残りは手前にあるウィンドウから順に入れる
+            var queue = carry.filter { $0 != .empty }
+            for fill in queue { if case .candidate(let id) = fill { used.insert(id) } }
+            queue += candidates.filter { $0.window != nil && !$0.isMinimized && !used.contains($0.id) }.map { SlotFill.candidate($0.id) }
+            for i in f.indices where i < queue.count { f[i] = queue[i] }
         }
-        fills = f
-        selectedSlot = f.firstIndex(of: .empty) ?? 0
+        return f
+    }
+
+    // MARK: アプリの最小サイズ（警告・おすすめ）
+
+    func bundleID(_ f: SlotFill) -> String? {
+        switch f {
+        case .empty: return nil
+        case .candidate(let id): return candidate(id)?.bundleID
+        case .app(let bid, _): return bid
+        }
+    }
+
+    func minSize(_ bid: String?) -> MinSize? { bid.flatMap { settings.minSizes[$0] } }
+
+    /// 場所 z の実際の枠（すき間・端の余白を引いたもの）
+    func frame(_ z: Zone) -> CGRect {
+        Geometry.frame(for: z, in: area, gap: CGFloat(settings.gap), edge: CGFloat(settings.edgeGap))
+    }
+
+    /// 配置案 c に fills を入れたとき、枠ごとに収まるか（フルスクリーンにする枠は調べない）
+    func fits(for c: Choice, fills: [SlotFill]) -> [SlotFit] {
+        var minW: [Double] = [], minH: [Double] = []
+        for (i, z) in c.zones.enumerated() {
+            let m = c.isFullScreen(i) || !fills.indices.contains(i) ? nil : minSize(bundleID(fills[i]))
+            let f = frame(z)
+            minW.append(m.map { Fit.fraction(minPt: $0.w, zoneSize: z.w, frameSize: Double(f.width), areaSize: Double(area.width)) } ?? 0)
+            minH.append(m.map { Fit.fraction(minPt: $0.h, zoneSize: z.h, frameSize: Double(f.height), areaSize: Double(area.height)) } ?? 0)
+        }
+        return Fit.check(zones: c.zones, minW: minW, minH: minH)
+    }
+
+    var slotFits: [SlotFit] { fits(for: choice, fills: fills) }
+
+    /// 配置案の一覧に付ける印（いちばん悪いもの）
+    func choiceFit(_ c: Choice) -> SlotFit {
+        let r = fits(for: c, fills: c.id == choiceID ? fills : simulatedFills(for: c, carry: fills))
+        if r.contains(.overlap) { return .overlap }
+        return r.contains(.adjusted) ? .adjusted : .ok
+    }
+
+    /// 枠に出す説明（収まらないときだけ）
+    func slotNote(_ i: Int) -> String? {
+        let fits = slotFits
+        guard fits.indices.contains(i), fits[i] != .ok, fills.indices.contains(i),
+              let m = minSize(bundleID(fills[i])) else { return nil }
+        let f = frame(choice.zones[i])
+        let tail = fits[i] == .overlap ? "重なります" : "隣を細くして並べます"
+        if m.w > Double(f.width) + 1 { return "最小の幅 \(Int(m.w)) pt ／ 枠 \(Int(f.width)) pt\n→ \(tail)" }
+        return "最小の高さ \(Int(m.h)) pt ／ 枠 \(Int(f.height)) pt\n→ \(tail)"
+    }
+
+    /// アプリのおすすめの幅（選んでいる画面で）。短い表示と、詳しい説明
+    func recommendation(_ bid: String) -> (short: String, long: String)? {
+        guard let m = minSize(bid) else { return nil }
+        let widths: [(String, NamedZone)] = [
+            ("1/4", .leftQuarter), ("1/3", .leftThird), ("1/2", .leftHalf), ("2/3", .leftTwoThirds), ("全体", .maximize),
+        ]
+        let list: [(name: String, width: Double)] = widths.map { (name: $0.0, width: Double(frame($0.1.zone).width)) }
+        let screen = screens[screenIndex].name
+        var long: String
+        let short: String
+        if let name = Fit.recommend(minWidth: m.w, choices: list) {
+            short = name == "1/4" ? "どの幅でも" : name == "全体" ? "全体で" : "\(name) 以上"
+            long = name == "1/4" ? "\(screen) では 1/4 の幅にも入ります" : "\(screen) では \(name) 以上の幅がおすすめ"
+        } else {
+            short = "入りきらない"
+            long = "\(screen) の幅に入りきりません"
+        }
+        long += "（最小 \(Int(m.w)) × \(Int(m.h)) pt）"
+        if m.h > Double(frame(NamedZone.topHalf.zone).height) + 1 { long += "。上下に分けた枠には入りません" }
+        return (short, long)
+    }
+
+    /// まだ最小サイズが分からないアプリを測る（各アプリ 1 回だけ。ウィンドウが一瞬小さくなって戻る）
+    func measureUnknown() {
+        var done = Set<String>()
+        for c in candidates {
+            guard let w = c.window, !c.isFullScreen, !c.isMinimized, !c.isHidden,
+                  settings.minSizes[c.bundleID] == nil, !done.contains(c.bundleID) else { continue }
+            done.insert(c.bundleID)
+            mover.measureMinSize(w)
+        }
     }
 
     func candidate(_ id: String) -> WindowCandidate? { candidates.first { $0.id == id } }
@@ -138,6 +235,7 @@ final class LayoutBoardModel: ObservableObject {
         candidates = WindowList.candidates()
         rebuildChoices()
         autoFill()
+        measureUnknown()
     }
 
     /// 並べるための一覧（空の枠は飛ばす）
@@ -242,6 +340,7 @@ struct LayoutBoardView: View {
                     .font(.headline)
                     .lineLimit(1)
                 board
+                fitSummary
                 Text("右の一覧のウィンドウを、枠へドラッグして入れます。クリックすると、選んでいる枠（青い線）に順に入ります。枠どうしで入れ替えるときも、一覧からドラッグします。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -257,6 +356,22 @@ struct LayoutBoardView: View {
             }
             .frame(maxWidth: .infinity)
             candidateList.frame(width: 290)
+        }
+    }
+
+    /// 収まらないアプリがあるときの説明
+    @ViewBuilder private var fitSummary: some View {
+        let fits = model.slotFits
+        if fits.contains(.overlap) {
+            Label("この画面では、入れたアプリの最小の幅（高さ）を合わせると入りきらず、重なります。配置案を変えるか、広い画面に並べてください。",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if fits.contains(.adjusted) {
+            Label("枠より狭くできないアプリがあります。並べるときに、隣の枠を細くして重ならないようにします。",
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -284,6 +399,15 @@ struct LayoutBoardView: View {
                     if let s = c.shortcut { Text(s).font(.caption2).foregroundStyle(.secondary) }
                 }
                 Spacer(minLength: 0)
+                switch model.choiceFit(c) {
+                case .ok: EmptyView()
+                case .adjusted:
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        .help("枠より狭くできないアプリがあります。隣の枠を細くして並べます")
+                case .overlap:
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        .help("この画面では入りきらず、ウィンドウが重なります")
+                }
             }
             .padding(6)
             .contentShape(Rectangle())
@@ -304,6 +428,8 @@ struct LayoutBoardView: View {
                             selected: model.selectedSlot == i,
                             fullScreen: model.choice.isFullScreen(i),
                             color: slotColors[i % slotColors.count],
+                            fit: model.slotFits.indices.contains(i) ? model.slotFits[i] : .ok,
+                            note: model.slotNote(i),
                             onTap: { model.selectedSlot = i },
                             onClear: { model.clear(i) },
                             onDrop: { id in
@@ -337,12 +463,17 @@ struct LayoutBoardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(model.candidates) { c in
-                        CandidateRow(candidate: c, slot: model.slotIndex(of: c.id))
+                        let rec = model.recommendation(c.bundleID)
+                        CandidateRow(candidate: c, slot: model.slotIndex(of: c.id), recommendation: rec)
                             .onTapGesture { model.tap(c.id) }
+                            .help(rec?.long ?? "")
                             .draggable(c.id) {
-                                HStack {
-                                    AppIconView(bundleID: c.bundleID, size: 20)
-                                    Text(c.appName)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        AppIconView(bundleID: c.bundleID, size: 20)
+                                        Text(c.appName)
+                                    }
+                                    if let rec { Text(rec.long).font(.caption) }
                                 }
                                 .padding(6)
                                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
@@ -393,10 +524,14 @@ private struct SlotBox: View {
     let selected: Bool
     let fullScreen: Bool
     let color: Color
+    let fit: SlotFit
+    let note: String?
     let onTap: () -> Void
     let onClear: () -> Void
     let onDrop: (String) -> Bool
     @State private var targeted = false
+
+    private var warnColor: Color? { fit == .overlap ? .red : fit == .adjusted ? .orange : nil }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -404,7 +539,8 @@ private struct SlotBox: View {
                 .fill(color.opacity(targeted ? 0.55 : (fill == .empty ? 0.12 : 0.3)))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(selected ? Color.accentColor : color.opacity(0.7), lineWidth: selected ? 3 : 1.5)
+                        .stroke(selected ? Color.accentColor : warnColor ?? color.opacity(0.7),
+                                lineWidth: selected || warnColor != nil ? 3 : 1.5)
                 }
             content
                 .padding(8)
@@ -442,6 +578,7 @@ private struct SlotBox: View {
                     if !c.title.isEmpty {
                         Text(c.title).font(.caption).lineLimit(2).multilineTextAlignment(.center).foregroundStyle(.secondary)
                     }
+                    warning
                 } else {
                     Text("（ウィンドウが閉じられました）").font(.caption).foregroundStyle(.secondary)
                 }
@@ -449,7 +586,18 @@ private struct SlotBox: View {
                 AppIconView(bundleID: bid, size: 30)
                 Text(name).font(.callout.weight(.semibold)).lineLimit(1)
                 Text("起動して並べる").font(.caption).foregroundStyle(.secondary)
+                warning
             }
+        }
+    }
+
+    @ViewBuilder private var warning: some View {
+        if let note, let warnColor {
+            Label(note, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(warnColor)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
         }
     }
 }
@@ -458,6 +606,8 @@ private struct SlotBox: View {
 private struct CandidateRow: View {
     let candidate: WindowCandidate
     let slot: Int?
+    /// おすすめの幅（最小サイズが分かっているアプリだけ）
+    let recommendation: (short: String, long: String)?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -472,6 +622,13 @@ private struct CandidateRow: View {
                 }
             }
             Spacer(minLength: 0)
+            if let recommendation {
+                Text(recommendation.short)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 5).padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.08), in: Capsule())
+                    .foregroundStyle(recommendation.short == "入りきらない" ? Color.red : Color.secondary)
+            }
             if let slot {
                 Text("\(slot + 1)")
                     .font(.caption.weight(.bold))

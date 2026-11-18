@@ -204,5 +204,23 @@ do {
     check("最小幅 収まらない", near(n[2].x + n[2].w, 1), "\(n)")
 }
 
+// 配置パネルの警告・おすすめ
+do {
+    let t = 1.0 / 3
+    let three = [Zone(0, 0, t, 1), Zone(t, 0, t, 1), Zone(2 * t, 0, t, 1)]
+    check("警告 収まる", Fit.check(zones: three, minW: [0, 0, 0], minH: [0, 0, 0]) == [.ok, .ok, .ok])
+    check("警告 隣を細く", Fit.check(zones: three, minW: [0, 0.45, 0], minH: [0, 0, 0]) == [.ok, .adjusted, .ok])
+    let over = Fit.check(zones: three, minW: [0.5, 0.5, 0.5], minH: [0, 0, 0])
+    check("警告 重なる", over.contains(.overlap), "\(over)")
+    // MacBook（1512pt）の 1/3 の枠（約 500pt）に、最小 820pt のアプリ
+    let fr = Fit.fraction(minPt: 820, zoneSize: t, frameSize: 500, areaSize: 1512)
+    check("最小幅の割合", abs(fr - (t + 320.0 / 1512)) < 1e-9, "\(fr)")
+    check("最小幅の割合 入る", Fit.fraction(minPt: 400, zoneSize: t, frameSize: 500, areaSize: 1512) == 0)
+    let ch: [(name: String, width: Double)] = [("1/4", 378), ("1/3", 504), ("1/2", 756), ("2/3", 1008), ("全体", 1512)]
+    check("おすすめ 1/2", Fit.recommend(minWidth: 600, choices: ch) == "1/2")
+    check("おすすめ 1/4", Fit.recommend(minWidth: 300, choices: ch) == "1/4")
+    check("おすすめ なし", Fit.recommend(minWidth: 2000, choices: ch) == nil)
+}
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

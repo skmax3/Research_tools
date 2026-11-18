@@ -7,6 +7,8 @@ final class AppSettings: ObservableObject {
     private let d = UserDefaults.standard
 
     @Published var presets: [Preset] { didSet { save(presets, "presets") } }
+    /// アプリごとのウィンドウの最小サイズ（バンドル ID → pt）。配置パネルで測る・並べたときに覚える
+    @Published var minSizes: [String: MinSize] { didSet { save(minSizes, "minSizes") } }
     /// ウィンドウどうしのすき間（pt）
     @Published var gap: Double { didSet { d.set(gap, forKey: "gap") } }
     /// 画面の端の余白（pt）。0 なら画面の端までぴったり
@@ -71,6 +73,7 @@ final class AppSettings: ObservableObject {
         edgeAllSides = d.bool(forKey: "edgeAllSides")
         presets = Self.load([Preset].self, "presets", from: d) ?? Preset.defaults
         shortcutOverrides = Self.load([String: KeyCombo].self, "shortcutOverrides", from: d) ?? [:]
+        minSizes = Self.load([String: MinSize].self, "minSizes", from: d) ?? [:]
         disabledShortcuts = Self.load(Set<String>.self, "disabledShortcuts", from: d) ?? []
     }
 

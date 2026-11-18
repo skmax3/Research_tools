@@ -532,6 +532,13 @@ struct GeneralTab: View {
                     Text("ステージマネージャがオンだと、アプリを手前に出すたびに前のアプリが左の帯にしまわれ、最後の 1 つしか残りません。配置案・プリセット・AI と並べる（2 つ以上のアプリ）のときだけオフにします。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                HStack {
+                    Text("覚えているアプリの最小サイズ：\(settings.minSizes.count) 個")
+                    Spacer()
+                    Button("忘れる") { settings.minSizes = [:] }
+                        .disabled(settings.minSizes.isEmpty)
+                        .help("配置パネルを次に開いたとき、測り直します")
+                }
             }
 
             Section("起動と許可") {

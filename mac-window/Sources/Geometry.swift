@@ -282,3 +282,43 @@ enum Fit {
         return zones.indices.map { Zone(x.starts[$0], y.starts[$0], x.sizes[$0], y.sizes[$0]) }
     }
 }
+
+// MARK: - アプリの最小サイズ（配置パネルの警告・おすすめ）
+
+/// アプリのウィンドウの最小サイズ（pt）。窓割りが測って（または並べたときに）覚える
+struct MinSize: Codable, Equatable {
+    var w: Double
+    var h: Double
+}
+
+/// 配置案の枠 1 つに、入れたアプリが収まるか
+enum SlotFit: Equatable {
+    case ok        // そのまま入る
+    case adjusted  // 枠より大きくしかできないが、隣を細くすれば重ならない
+    case overlap   // どうしても重なる（最小の合計が画面より大きい）
+}
+
+extension Fit {
+    /// 最小サイズ（pt）を、場所の割合に直す。枠に入るなら 0
+    /// - zoneSize: 枠の割合、frameSize: すき間を引いた実際の枠の大きさ（pt）、areaSize: 画面の大きさ（pt）
+    static func fraction(minPt: Double, zoneSize: Double, frameSize: Double, areaSize: Double) -> Double {
+        guard minPt > frameSize + 1, areaSize > 0 else { return 0 }
+        return zoneSize + (minPt - frameSize) / areaSize
+    }
+
+    /// 枠ごとに、収まるか・隣を細くすれば収まるか・重なるかを調べる
+    static func check(zones: [Zone], minW: [Double], minH: [Double]) -> [SlotFit] {
+        let e = 1e-4
+        let fitted = refit(zones: zones, minW: minW, minH: minH)
+        return zones.indices.map { i in
+            if fitted[i].w < minW[i] - e || fitted[i].h < minH[i] - e { return .overlap }
+            if zones[i].w < minW[i] - e || zones[i].h < minH[i] - e { return .adjusted }
+            return .ok
+        }
+    }
+
+    /// 最小の幅（pt）から、おすすめの幅を選ぶ。choices は狭い順の（名前, その幅の pt）。どれにも入らなければ nil
+    static func recommend(minWidth: Double, choices: [(name: String, width: Double)]) -> String? {
+        choices.first { $0.width + 1 >= minWidth }?.name
+    }
+}

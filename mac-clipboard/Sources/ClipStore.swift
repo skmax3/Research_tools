@@ -208,6 +208,46 @@ final class ClipStore: ObservableObject {
         items.reduce(Int64(0)) { $0 + cachedBytes(of: $1) }
     }
 
+    /// 軽くしたことで減った容量の合計（バイト。メニューに表示）
+    @Published private(set) var recompressedBytes: Int64 = Int64(UserDefaults.standard.integer(forKey: "recompressedBytes"))
+    /// 軽くできなかった（しなくてよかった）もの。同じものを何度も調べないよう、起動中は覚えておく
+    private var recompressSkipped = Set<UUID>()
+    private var recompressing = false
+
+    /// 古い画像（PNG）を、軽い JPEG にする。新しいもの・ピン留めには触らない（見た目が変わるため）。
+    /// 画像ファイルの拡張子が変わるだけで、履歴の内容（index.json）は変わらない。重い処理なので、裏で行う
+    func recompressOldImages(olderThanDays days: Int) {
+        guard days > 0, !recompressing else { return }
+        let now = Date()
+        let dir = self.dir
+        let targets = items.filter {
+            $0.kind == .image && !$0.pinned && !recompressSkipped.contains($0.id)
+                && StoragePolicy.isOldEnough($0.date, now: now, days: days)
+        }.map(\.id)
+        guard !targets.isEmpty else { return }
+        recompressing = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            for id in targets {
+                let png = dir.appendingPathComponent("images/\(id.uuidString).png")
+                guard let data = try? Data(contentsOf: png) else { continue }
+                let jpeg = ImageRecompressor.jpegIfWorthwhile(data)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    // 処理の間に消された・軽くされた場合は何もしない
+                    guard self.items.contains(where: { $0.id == id }), FileManager.default.fileExists(atPath: png.path) else { return }
+                    guard let jpeg else { self.recompressSkipped.insert(id); return }
+                    let target = dir.appendingPathComponent("images/\(id.uuidString).jpg")
+                    guard (try? jpeg.write(to: target, options: .atomic)) != nil else { return }
+                    try? FileManager.default.removeItem(at: png)
+                    self.sizeCache[id] = nil
+                    self.recompressedBytes += Int64(data.count - jpeg.count)
+                    UserDefaults.standard.set(Int(self.recompressedBytes), forKey: "recompressedBytes")
+                }
+            }
+            DispatchQueue.main.async { self?.recompressing = false }
+        }
+    }
+
     /// 選んだものをまとめて消す（保存は1回）
     func delete(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
@@ -242,51 +282,6 @@ final class ClipStore: ObservableObject {
 
     static func hash(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-/// 画像の変換（PNG化・縮小）
-enum ImageUtil {
-    static func pngData(_ image: NSImage) -> Data? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        return NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
-    }
-
-    /// 長い辺が maxSide 以下になるように縮小した JPEG（iPhone へ送る写真用）
-    static func jpegData(_ image: NSImage, maxSide: CGFloat, quality: CGFloat) -> Data? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let w = CGFloat(cg.width), h = CGFloat(cg.height)
-        let scale = min(1, maxSide / max(w, h))
-        let nw = max(1, Int(w * scale)), nh = max(1, Int(h * scale))
-        guard let ctx = CGContext(data: nil, width: nw, height: nh, bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
-        ctx.setFillColor(CGColor(gray: 1, alpha: 1))  // 透明な部分は白にする（JPEG は透明を持てない）
-        ctx.fill(CGRect(x: 0, y: 0, width: nw, height: nh))
-        ctx.interpolationQuality = .high
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: nw, height: nh))
-        guard let out = ctx.makeImage() else { return nil }
-        return NSBitmapImageRep(cgImage: out).representation(using: .jpeg, properties: [.compressionFactor: quality])
-    }
-
-    /// 長い辺が maxSide 以下になるように縮小した PNG
-    static func thumbnail(_ image: NSImage, maxSide: CGFloat) -> Data? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let w = CGFloat(cg.width), h = CGFloat(cg.height)
-        let scale = min(1, maxSide / max(w, h))
-        let nw = max(1, Int(w * scale)), nh = max(1, Int(h * scale))
-        guard let ctx = CGContext(data: nil, width: nw, height: nh, bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        ctx.interpolationQuality = .high
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: nw, height: nh))
-        guard let out = ctx.makeImage() else { return nil }
-        return NSBitmapImageRep(cgImage: out).representation(using: .png, properties: [:])
-    }
-
-    static func pixelSize(_ image: NSImage) -> (Int, Int) {
-        if let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) { return (cg.width, cg.height) }
-        return (Int(image.size.width), Int(image.size.height))
     }
 }
 

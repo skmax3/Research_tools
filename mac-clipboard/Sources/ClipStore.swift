@@ -148,6 +148,7 @@ final class ClipStore: ObservableObject {
     func updateMedia(_ id: UUID, thumb: Data?, width: Int, height: Int, duration: Double) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         if let thumb {
+            sizeCache[id] = nil
             try? thumb.write(to: thumbURL(id))
             ThumbCache.shared.remove(id)
         }
@@ -193,6 +194,28 @@ final class ClipStore: ObservableObject {
         if items.count != before { save() }
     }
 
+    /// 画面（並べ替え・表示）用。ファイルを何度も調べないよう、大きさを覚えておく
+    private var sizeCache: [UUID: Int64] = [:]
+
+    func cachedBytes(of item: ClipItem) -> Int64 {
+        if let v = sizeCache[item.id] { return v }
+        let v = bytes(of: item)
+        sizeCache[item.id] = v
+        return v
+    }
+
+    func cachedTotalBytes() -> Int64 {
+        items.reduce(Int64(0)) { $0 + cachedBytes(of: $1) }
+    }
+
+    /// 選んだものをまとめて消す（保存は1回）
+    func delete(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for item in items where ids.contains(item.id) { removeFiles(item) }
+        items.removeAll { ids.contains($0.id) }
+        save()
+    }
+
     /// 1 件分のファイルの大きさ（画像・サムネイル・書式付きテキスト）
     func bytes(of item: ClipItem) -> Int64 {
         let jpg = dir.appendingPathComponent("images/\(item.id.uuidString).jpg")
@@ -209,6 +232,7 @@ final class ClipStore: ObservableObject {
     }
 
     private func removeFiles(_ item: ClipItem) {
+        sizeCache[item.id] = nil
         let jpg = dir.appendingPathComponent("images/\(item.id.uuidString).jpg")
         for url in [imageURL(item.id), jpg, thumbURL(item.id), rtfURL(item.id)] {
             try? FileManager.default.removeItem(at: url)

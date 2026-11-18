@@ -1,0 +1,2 @@
+# .bat は Windows のコマンドプロンプト用に Shift_JIS・CRLF で保存している。Git に改行や文字コードを変えさせない
+*.bat -text

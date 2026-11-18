@@ -17,6 +17,12 @@ FWR 研究で使う小さなWebツールをまとめたリポジトリです。�
 | クリップ棚 | [`mac-clipboard/`](mac-clipboard/) | ⌘C を自動記録し、⇧⌘X で画面下から履歴を出して貼り付け |
 | 窓割り | [`mac-window/`](mac-window/) | 4K モニター向けのウィンドウ配置。⌃⌥A で作業中のウィンドウの横に AI を出す、⌃⌥1〜9 で「AI＋執筆＋PDF」などを一発で並べる |
 
+### Windows 用（ダブルクリックで使う）
+
+| ツール | フォルダ | 説明 |
+|---|---|---|
+| 画面切り替え | [`win-display-switch/`](win-display-switch/) | PC と Mac で 2 台のモニター（4K・FHD）を入れ替える `.bat`。4K でゲーム ⇄ Mac 作業 |
+
 今後の予定は [ROADMAP.md](ROADMAP.md) を参照。
 
 ---

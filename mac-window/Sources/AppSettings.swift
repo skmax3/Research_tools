@@ -26,6 +26,8 @@ final class AppSettings: ObservableObject {
     @Published var exitFullScreen: Bool { didSet { d.set(exitFullScreen, forKey: "exitFullScreen") } }
     /// いくつものアプリをまとめて並べるときは、ステージマネージャをオフにする（オンだと最後のアプリしか残らない）
     @Published var stageManagerOff: Bool { didSet { d.set(stageManagerOff, forKey: "stageManagerOff") } }
+    /// 配置パネルで並べるとき、ほかのアプリを隠す
+    @Published var panelHideOthers: Bool { didSet { d.set(panelHideOthers, forKey: "panelHideOthers") } }
     /// 動かしたときに、場所の名前を画面に一瞬出す
     @Published var showToast: Bool { didSet { d.set(showToast, forKey: "showToast") } }
 
@@ -55,6 +57,7 @@ final class AppSettings: ObservableObject {
             "exitFullScreen": true,
             "stageManagerOff": true,
             "showToast": true,
+            "panelHideOthers": true,
             "edgeBarrier": true,
             "edgeHold": 0.4,
             "edgeAllSides": false,
@@ -68,6 +71,7 @@ final class AppSettings: ObservableObject {
         exitFullScreen = d.bool(forKey: "exitFullScreen")
         stageManagerOff = d.bool(forKey: "stageManagerOff")
         showToast = d.bool(forKey: "showToast")
+        panelHideOthers = d.bool(forKey: "panelHideOthers")
         edgeBarrier = d.bool(forKey: "edgeBarrier")
         edgeHold = d.double(forKey: "edgeHold")
         edgeAllSides = d.bool(forKey: "edgeAllSides")

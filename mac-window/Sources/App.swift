@@ -189,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(it)
         }
         menu.addItem(item("今の配置をプリセットに保存（マウスのある画面）", #selector(saveCurrentLayout)))
+        menu.addItem(item("隠したアプリを全部表示", #selector(unhideAll)))
         menu.addItem(.separator())
 
         let moveMenu = NSMenu()
@@ -285,6 +286,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             alert("ステージマネージャを切り替えられませんでした", "コントロールセンター（メニューバー右上）の「ステージマネージャ」から切り替えてください。")
         }
     }
+
+    @objc private func unhideAll() { WindowMover.unhideAll() }
 
     @objc private func openAccessibilityFromMenu() { openAccessibility() }
 

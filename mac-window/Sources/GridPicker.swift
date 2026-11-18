@@ -92,7 +92,8 @@ final class GridPickerController {
         guard !items.isEmpty else { NSSound.beep(); return }
         let area = model.area
         let name = model.choice.name
-        finish { [weak self] in self?.mover.arrange(items, area: area, name: name) }
+        let hide = model.hideOthers
+        finish { [weak self] in self?.mover.arrange(items, area: area, name: name, hideOthers: hide) }
     }
 
     /// 今の枠の割り当てを、配置プリセットとして保存する（名前は設定で変えられる）
@@ -101,7 +102,8 @@ final class GridPickerController {
         let slots = model.slotsForPreset()
         guard !slots.isEmpty else { NSSound.beep(); return }
         let apps = slots.map(\.appName).prefix(3).joined(separator: " ＋ ")
-        let preset = Preset(name: "\(model.choice.name)：\(apps)", slots: slots, screen: model.screenTarget)
+        let preset = Preset(name: "\(model.choice.name)：\(apps)", slots: slots, screen: model.screenTarget,
+                            hideOthers: model.hideOthers)
         mover.settings.presets.append(preset)
         let n = mover.settings.presets.count
         let key = n <= Shortcut.presetKeys.count ? mover.settings.combo(for: Shortcut.presetKeys[n - 1])?.label : nil

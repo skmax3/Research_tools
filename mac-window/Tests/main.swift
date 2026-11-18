@@ -222,5 +222,21 @@ do {
     check("おすすめ なし", Fit.recommend(minWidth: 2000, choices: ch) == nil)
 }
 
+// ほかのアプリを隠すか（4K が 0 番、MacBook 本体が 1 番）
+do {
+    let screens = [CGRect(x: 0, y: 0, width: 2560, height: 1440), CGRect(x: 524, y: 1440, width: 1512, height: 982)]
+    let on4K = CGRect(x: 100, y: 100, width: 800, height: 600)
+    let onMac = CGRect(x: 600, y: 1500, width: 800, height: 600)
+    check("隠す 4K だけ", HideRule.shouldHide(onScreen: [on4K], screens: screens, target: 0, offScreen: 0, minimized: 0))
+    check("隠さない MacBook にもある", !HideRule.shouldHide(onScreen: [on4K, onMac], screens: screens, target: 0, offScreen: 0, minimized: 0))
+    check("隠さない ほかのデスクトップにもある", !HideRule.shouldHide(onScreen: [on4K], screens: screens, target: 0, offScreen: 1, minimized: 0))
+    check("隠す しまってあるだけ", HideRule.shouldHide(onScreen: [on4K], screens: screens, target: 0, offScreen: 1, minimized: 1))
+    check("隠さない 見えていない", !HideRule.shouldHide(onScreen: [], screens: screens, target: 0, offScreen: 0, minimized: 0))
+    // 古い保存データ（desktop がない）も読める
+    let old = #"{"name":"古い","slots":[],"screen":"largest","hideOthers":true}"#.data(using: .utf8)!
+    let p = try? JSONDecoder().decode(Preset.self, from: old)
+    check("古いプリセット desktop", p?.desktop == 0 && p?.hideOthers == true)
+}
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

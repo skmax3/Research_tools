@@ -31,6 +31,8 @@ final class LayoutBoardModel: ObservableObject {
     @Published var selectedSlot: Int?
     @Published var candidates: [WindowCandidate]
     @Published private(set) var choices: [Choice] = []
+    /// 並べるときに、ほかのアプリを隠す（設定に保存して、次に開いたときも同じにする）
+    @Published var hideOthers: Bool { didSet { settings.panelHideOthers = hideOthers } }
 
     let screens: [WindowMover.ScreenInfo]
     private let settings: AppSettings
@@ -47,6 +49,7 @@ final class LayoutBoardModel: ObservableObject {
          target: AXUIElement?, targetName: String?, targetZone: Zone?, targetArea: CGRect?) {
         self.mover = mover
         self.settings = mover.settings
+        hideOthers = mover.settings.panelHideOthers
         self.screens = screens
         self.screenIndex = screenIndex
         self.target = target
@@ -352,6 +355,8 @@ struct LayoutBoardView: View {
                     Button("プリセットとして保存") { onSave() }
                     Button("枠を空にする") { model.clearAll() }
                     Spacer()
+                    Toggle("ほかのアプリを隠す", isOn: $model.hideOthers)
+                        .help("並べるアプリ以外で、この画面・このデスクトップだけにあるアプリを隠します（⌘H と同じ。Dock や ⌘Tab で戻ります）")
                 }
             }
             .frame(maxWidth: .infinity)

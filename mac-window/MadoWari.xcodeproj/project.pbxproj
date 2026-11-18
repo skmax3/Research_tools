@@ -10,6 +10,7 @@
 		01FE0C403C5558BF1E14068A /* Presets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB5236C84ED9FB2CA9D7075 /* Presets.swift */; };
 		1486A416E651E900CDC2E30D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0775622D77DE9962439F0B7 /* Assets.xcassets */; };
 		1DE6175BE7E69CB52C7CCD8A /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7F323156DBF48724EDB853 /* Geometry.swift */; };
+		2A4B56CB56B71E38C75BF827 /* WindowList.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53FE5C9E2E0C28EDC3A66DD /* WindowList.swift */; };
 		2D16604AF0FD9C7C85A5D572 /* GridSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B4B7B02C94FE377C2955B4 /* GridSelector.swift */; };
 		2D796D32EBC68EF951EC63FD /* HotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC4B309C3157A0C21B885CB /* HotKey.swift */; };
 		4EDA517AD83A2FDD1D5F7794 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17E190C01EC7C24C817DA717 /* App.swift */; };
@@ -21,11 +22,14 @@
 		A93AE5BF781AECD19E5D3164 /* GridPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585BCC6323683DDFBAB5FAF1 /* GridPicker.swift */; };
 		C7D26581C8655714A3B07B01 /* WindowMover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65388FF4636A07F62D27719 /* WindowMover.swift */; };
 		E9F4655F7E9610E1E761A780 /* EdgeLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C804E69ABF1FD88D47825D29 /* EdgeLogic.swift */; };
+		EC531403B6447A0879E566A5 /* LayoutBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8B7B4488AC516173A98E3C /* LayoutBoard.swift */; };
+		EF6137921996D25F7765BAE1 /* Layouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5EEE3E2634F56B9F1DAAF3 /* Layouts.swift */; };
 		F6396FEB40F108AF851C1069 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF14F5141697AF13DD729558 /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		17E190C01EC7C24C817DA717 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		1D5EEE3E2634F56B9F1DAAF3 /* Layouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Layouts.swift; sourceTree = "<group>"; };
 		2E7AF28AF7988854F2CDBE53 /* MadoWari.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MadoWari.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3692FE14AC2D5C9B1B5667C9 /* KeyCombo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCombo.swift; sourceTree = "<group>"; };
 		3D7C0DCD086D8F82C54F5045 /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
@@ -40,6 +44,8 @@
 		A0775622D77DE9962439F0B7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A65388FF4636A07F62D27719 /* WindowMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMover.swift; sourceTree = "<group>"; };
 		C804E69ABF1FD88D47825D29 /* EdgeLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeLogic.swift; sourceTree = "<group>"; };
+		D53FE5C9E2E0C28EDC3A66DD /* WindowList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowList.swift; sourceTree = "<group>"; };
+		DA8B7B4488AC516173A98E3C /* LayoutBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutBoard.swift; sourceTree = "<group>"; };
 		EF14F5141697AF13DD729558 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FBADE17589DA5E7623F21201 /* EdgeBarrierController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeBarrierController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -57,10 +63,13 @@
 				66B4B7B02C94FE377C2955B4 /* GridSelector.swift */,
 				7CC4B309C3157A0C21B885CB /* HotKey.swift */,
 				3692FE14AC2D5C9B1B5667C9 /* KeyCombo.swift */,
+				DA8B7B4488AC516173A98E3C /* LayoutBoard.swift */,
+				1D5EEE3E2634F56B9F1DAAF3 /* Layouts.swift */,
 				8EB5236C84ED9FB2CA9D7075 /* Presets.swift */,
 				EF14F5141697AF13DD729558 /* SettingsView.swift */,
 				7033F39C4E19B20D659F6CBC /* Shortcuts.swift */,
 				3D7C0DCD086D8F82C54F5045 /* Toast.swift */,
+				D53FE5C9E2E0C28EDC3A66DD /* WindowList.swift */,
 				A65388FF4636A07F62D27719 /* WindowMover.swift */,
 			);
 			path = Sources;
@@ -180,10 +189,13 @@
 				2D16604AF0FD9C7C85A5D572 /* GridSelector.swift in Sources */,
 				2D796D32EBC68EF951EC63FD /* HotKey.swift in Sources */,
 				5E103962AB20792F86445810 /* KeyCombo.swift in Sources */,
+				EC531403B6447A0879E566A5 /* LayoutBoard.swift in Sources */,
+				EF6137921996D25F7765BAE1 /* Layouts.swift in Sources */,
 				01FE0C403C5558BF1E14068A /* Presets.swift in Sources */,
 				F6396FEB40F108AF851C1069 /* SettingsView.swift in Sources */,
 				A41FCE6D7F1306CE3A03088A /* Shortcuts.swift in Sources */,
 				9D40186DB4DA1CF07DDB0E1E /* Toast.swift in Sources */,
+				2A4B56CB56B71E38C75BF827 /* WindowList.swift in Sources */,
 				C7D26581C8655714A3B07B01 /* WindowMover.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

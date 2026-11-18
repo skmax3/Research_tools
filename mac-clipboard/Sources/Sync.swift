@@ -14,6 +14,8 @@ final class SyncManager: ObservableObject {
     @Published private(set) var connected = false
     /// 高速モード用の鍵を登録できなかった（別の鍵が先に登録されている）。ペアリングのやり直しが必要
     @Published private(set) var quickProblem = false
+    /// 最後に iPhone から受け取った時刻と、サーバーに届いてから受け取るまでの時間（ペアリング画面に表示）
+    @Published private(set) var lastReceived = ""
 
     /// iPhone から新しく届いたとき（件数）
     var onReceived: ((Int) -> Void)?
@@ -244,6 +246,8 @@ final class SyncManager: ObservableObject {
         let seq: Int
         let device: String
         let inline: Data?
+        /// サーバーが受け取った時刻（ミリ秒）
+        let sent: Double
     }
 
     func poll() {
@@ -261,7 +265,8 @@ final class SyncManager: ObservableObject {
             let incoming: [Incoming] = list.compactMap { d in
                 guard let seq = (d["seq"] as? NSNumber)?.intValue else { return nil }
                 let inline = (d["data"] as? String).flatMap { SyncCrypto.fromBase64($0) }
-                return Incoming(seq: seq, device: d["dev"] as? String ?? "", inline: inline)
+                return Incoming(seq: seq, device: d["dev"] as? String ?? "", inline: inline,
+                                sent: (d["t"] as? NSNumber)?.doubleValue ?? 0)
             }
             self.receive(incoming, index: 0, got: 0)
         }
@@ -287,7 +292,12 @@ final class SyncManager: ObservableObject {
         let finish: (Data) -> Void = { [weak self] blob in
             guard let self else { return }
             self.advance(to: it.seq)
-            if let opened = self.decrypt(blob), self.accept(opened) { next(1) } else { next(0) }
+            if let opened = self.decrypt(blob), self.accept(opened) {
+                self.noteReceived(it)
+                next(1)
+            } else {
+                next(0)
+            }
         }
         if let inline = it.inline {
             finish(inline)
@@ -305,6 +315,18 @@ final class SyncManager: ObservableObject {
                 }
             }
         }
+    }
+
+    /// 「最後に受信」の表示を作る。サーバーに届いてから Mac が受け取るまでが短ければ、通知が速く届いている
+    private func noteReceived(_ it: Incoming) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        var text = "最後に受信: " + formatter.string(from: Date())
+        let delay = Date().timeIntervalSince1970 - it.sent / 1000
+        if it.sent > 0, delay >= 0, delay < 3600 {
+            text += String(format: "（サーバーに届いてから %.1f 秒）", delay)
+        }
+        lastReceived = text
     }
 
     /// 先頭の1バイトで方式を見分ける（1: 端末で暗号化、2: 高速モード）

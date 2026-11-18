@@ -1,5 +1,5 @@
 // 計算部分の確認（GitHub Actions で実行:
-//   swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
+//   swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Sources/Layouts.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
 import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
@@ -148,6 +148,35 @@ check("F キー", KeyCombo(kVK_F5, 0).label == "F5" && KeyCombo(kVK_F5, 0).isFun
 check("修飾キーの判定", !KeyCombo(kVK_ANSI_A, shiftKey, "A").hasModifier && KeyCombo(kVK_ANSI_A, optionKey, "A").hasModifier)
 let kc = KeyCombo(kVK_ANSI_W, KeyCombo.co, "W")
 check("キー 保存と読み込み", (try? JSONDecoder().decode(KeyCombo.self, from: JSONEncoder().encode(kc))) == kc)
+
+// 画面の端の余白を 0、ウィンドウ間を 6 にしたとき
+let e0 = Geometry.frame(for: NamedZone.leftThird.zone, in: area, gap: 6, edge: 0)
+check("端の余白 0 左上", e0.minX == 0 && e0.minY == area.minY, "\(e0)")
+check("端の余白 0 下", e0.maxY == area.maxY, "\(e0)")
+let e1 = Geometry.frame(for: NamedZone.centerThird.zone, in: area, gap: 6, edge: 0)
+check("端 0 でも間は 6", e1.minX - e0.maxX == 6, "\(e0) \(e1)")
+let e2 = Geometry.frame(for: NamedZone.rightThird.zone, in: area, gap: 6, edge: 0)
+check("端の余白 0 右", e2.maxX == area.maxX, "\(e2)")
+check("全体 端 0", Geometry.frame(for: NamedZone.maximize.zone, in: area, gap: 6, edge: 0) == area)
+check("端 0 の往復", Geometry.zone(for: e1, in: area).isClose(to: NamedZone.centerThird.zone))
+
+// 配置案のひな形: 画面からはみ出さない・重ならない・名前が重ならない
+for t in LayoutTemplate.builtIn {
+    check("配置案 範囲 \(t.id)", t.zones.allSatisfy { $0.x >= 0 && $0.y >= 0 && $0.x + $0.w <= 1.0001 && $0.y + $0.h <= 1.0001 })
+    check("配置案 重なりなし \(t.id)", !t.hasOverlap)
+}
+check("配置案 ID", Set(LayoutTemplate.builtIn.map(\.id)).count == LayoutTemplate.builtIn.count)
+check("配置案 フルスクリーン", LayoutTemplate.builtIn.first { $0.id == "full" }?.isFullScreen(0) == true
+      && LayoutTemplate.builtIn.first { $0.id == "thirds" }?.isFullScreen(0) == false)
+check("重なりの判定", LayoutTemplate(id: "x", name: "x", zones: [NamedZone.leftHalf.zone, NamedZone.leftThird.zone]).hasOverlap)
+
+// フルスクリーン指定の保存と、古いデータ（指定なし）の読み込み
+let fsSlot = Slot(bundleID: "com.apple.Safari", appName: "Safari", zone: NamedZone.maximize.zone, fullScreen: true)
+let fsBack = try? JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(fsSlot))
+check("フルスクリーン指定 保存", fsBack?.fullScreen == true)
+check("フルスクリーン指定 古いデータ", oldDecoded?.first?.slots.first?.fullScreen == false)
+let builtinPreset = try? JSONDecoder().decode(Preset.self, from: JSONEncoder().encode(Preset(name: "Mac", slots: [], screen: .builtin)))
+check("MacBook 本体の画面 保存", builtinPreset?.screen == .builtin)
 
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

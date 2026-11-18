@@ -4,12 +4,14 @@ import Foundation
 enum ScreenTarget: String, Codable, CaseIterable, Identifiable {
     case largest   // 一番大きい画面（27 インチ 4K を想定）
     case mouse     // マウスのある画面
+    case builtin   // MacBook 本体の画面
 
     var id: String { rawValue }
     var title: String {
         switch self {
         case .largest: return "一番大きい画面（4K モニター）"
         case .mouse: return "マウスのある画面"
+        case .builtin: return "MacBook 本体の画面"
         }
     }
 }
@@ -22,12 +24,15 @@ struct Slot: Codable, Identifiable, Hashable {
     var zone: Zone
     /// 起動していなければ起動する（ウィンドウがなければ開き直す）
     var launch = false
+    /// 並べたあとフルスクリーンにする（MacBook 本体の画面で全画面で使うときなど）
+    var fullScreen = false
 
-    init(bundleID: String, appName: String, zone: Zone, launch: Bool = false) {
+    init(bundleID: String, appName: String, zone: Zone, launch: Bool = false, fullScreen: Bool = false) {
         self.bundleID = bundleID
         self.appName = appName
         self.zone = zone
         self.launch = launch
+        self.fullScreen = fullScreen
     }
 
     init(_ app: KnownApp, _ z: NamedZone, launch: Bool = false) {
@@ -35,7 +40,7 @@ struct Slot: Codable, Identifiable, Hashable {
     }
 
     // 将来、項目が増えても古い保存データを読めるように、ない項目は初期値にする
-    enum CodingKeys: String, CodingKey { case id, bundleID, appName, zone, launch }
+    enum CodingKeys: String, CodingKey { case id, bundleID, appName, zone, launch, fullScreen }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -43,6 +48,7 @@ struct Slot: Codable, Identifiable, Hashable {
         appName = try c.decodeIfPresent(String.self, forKey: .appName) ?? bundleID
         zone = try c.decode(Zone.self, forKey: .zone)
         launch = try c.decodeIfPresent(Bool.self, forKey: .launch) ?? false
+        fullScreen = try c.decodeIfPresent(Bool.self, forKey: .fullScreen) ?? false
     }
 }
 

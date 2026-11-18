@@ -407,6 +407,9 @@ struct SlotRow: View {
             Toggle("なければ起動", isOn: $slot.launch)
                 .toggleStyle(.checkbox)
                 .help("アプリが起動していない（ウィンドウがない）ときは、起動してから並べます")
+            Toggle("全画面", isOn: $slot.fullScreen)
+                .toggleStyle(.checkbox)
+                .help("並べたあとフルスクリーンにします（MacBook 本体の画面で全画面で使うときなど）")
             Spacer()
             Button { onSelect() } label: {
                 Image(systemName: selected ? "square.grid.3x3.fill" : "square.grid.3x3")
@@ -515,7 +518,11 @@ struct GeneralTab: View {
 
             Section("ウィンドウの動かし方") {
                 HStack {
-                    Slider(value: $settings.gap, in: 0...24, step: 2) { Text("ウィンドウのすき間") }
+                    Slider(value: $settings.edgeGap, in: 0...24, step: 2) { Text("画面の端の余白") }
+                    Text("\(Int(settings.edgeGap)) pt").monospacedDigit().frame(width: 50, alignment: .trailing)
+                }
+                HStack {
+                    Slider(value: $settings.gap, in: 0...24, step: 2) { Text("ウィンドウどうしのすき間") }
                     Text("\(Int(settings.gap)) pt").monospacedDigit().frame(width: 50, alignment: .trailing)
                 }
                 Toggle("フルスクリーンのウィンドウは、解除してから並べる", isOn: $settings.exitFullScreen)

@@ -7,8 +7,10 @@ final class AppSettings: ObservableObject {
     private let d = UserDefaults.standard
 
     @Published var presets: [Preset] { didSet { save(presets, "presets") } }
-    /// ウィンドウどうし・画面の端とのすき間（pt）
+    /// ウィンドウどうしのすき間（pt）
     @Published var gap: Double { didSet { d.set(gap, forKey: "gap") } }
+    /// 画面の端の余白（pt）。0 なら画面の端までぴったり
+    @Published var edgeGap: Double { didSet { d.set(edgeGap, forKey: "edgeGap") } }
 
     // MARK: AI と並べる
     @Published var aiBundleID: String { didSet { d.set(aiBundleID, forKey: "aiBundleID") } }
@@ -40,7 +42,8 @@ final class AppSettings: ObservableObject {
 
     init() {
         d.register(defaults: [
-            "gap": 8.0,
+            "gap": 6.0,
+            "edgeGap": 0.0,
             "aiBundleID": KnownApp.claude.bundleID,
             "aiName": KnownApp.claude.name,
             "aiOnLeft": true,
@@ -52,6 +55,7 @@ final class AppSettings: ObservableObject {
             "edgeAllSides": false,
         ])
         gap = d.double(forKey: "gap")
+        edgeGap = d.double(forKey: "edgeGap")
         aiBundleID = d.string(forKey: "aiBundleID") ?? KnownApp.claude.bundleID
         aiName = d.string(forKey: "aiName") ?? KnownApp.claude.name
         aiOnLeft = d.bool(forKey: "aiOnLeft")

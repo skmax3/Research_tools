@@ -125,17 +125,18 @@ enum Geometry {
         CGRect(x: r.minX, y: primaryHeight - r.maxY, width: r.width, height: r.height)
     }
 
-    /// 場所 z に置くときのウィンドウの枠。画面の端とウィンドウどうしの間が、どこでも gap になるようにする
-    static func frame(for z: Zone, in area: CGRect, gap: CGFloat) -> CGRect {
+    /// 場所 z に置くときのウィンドウの枠。ウィンドウどうしの間は gap、画面の端との間は edge（省略すると gap）
+    static func frame(for z: Zone, in area: CGRect, gap: CGFloat, edge: CGFloat? = nil) -> CGRect {
+        let edge = edge ?? gap
         let e = 0.002
         let x0 = area.minX + CGFloat(z.x) * area.width
         let x1 = area.minX + CGFloat(z.x + z.w) * area.width
         let y0 = area.minY + CGFloat(z.y) * area.height
         let y1 = area.minY + CGFloat(z.y + z.h) * area.height
-        let l = z.x <= e ? gap : gap / 2
-        let r = z.x + z.w >= 1 - e ? gap : gap / 2
-        let t = z.y <= e ? gap : gap / 2
-        let b = z.y + z.h >= 1 - e ? gap : gap / 2
+        let l = z.x <= e ? edge : gap / 2
+        let r = z.x + z.w >= 1 - e ? edge : gap / 2
+        let t = z.y <= e ? edge : gap / 2
+        let b = z.y + z.h >= 1 - e ? edge : gap / 2
         // 端を別々に丸めて、隣のウィンドウとの間がずれないようにする
         let left = (x0 + l).rounded(), right = (x1 - r).rounded()
         let top = (y0 + t).rounded(), bottom = (y1 - b).rounded()

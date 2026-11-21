@@ -243,5 +243,10 @@ check("整理 隠す", TidyRule.toHide(order: ["A", "B", "X", "C", "D", "E"], hi
 check("整理 少ない", TidyRule.toHide(order: ["A", "B"], hideable: ["A", "B"], keep: 3).isEmpty)
 check("整理 最低 1 個は残す", TidyRule.toHide(order: ["A", "B"], hideable: ["A", "B"], keep: 0) == ["B"])
 
+check("結合 日本語", MenuTitle.isMergeAllWindows("すべてのウインドウを結合"))
+check("結合 表記ゆれ", MenuTitle.isMergeAllWindows("すべてのウィンドウを結合"))
+check("結合 英語", MenuTitle.isMergeAllWindows("Merge All Windows"))
+check("結合 ちがう", !MenuTitle.isMergeAllWindows("ウインドウを閉じる"))
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

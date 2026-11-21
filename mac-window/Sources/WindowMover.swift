@@ -496,6 +496,75 @@ final class WindowMover {
         guard let target = NSScreen.screens.firstIndex(where: { NSMouseInRect(mouse, $0.frame, false) }),
               target < infos.count else { return }
         let frames = infos.map(\.frame)
+        // 1. 同じアプリのウィンドウが 2 つ以上あれば、1 つのウィンドウのタブにまとめる（Finder など）
+        let many = settings.tidyMerge ? Self.appsWithManyWindows(screens: frames, target: target) : []
+        guard !many.isEmpty else { hideRest(target: target, merged: []); return }
+        let front = NSWorkspace.shared.frontmostApplication
+        mergeWindows(of: many, merged: []) { [weak self] merged in
+            // まとめ終わったら、もとのアプリを手前に戻してから 2. へ
+            front?.activate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.hideRest(target: target, merged: merged) }
+        }
+    }
+
+    /// その画面の今のデスクトップに、ウィンドウが 2 つ以上見えているアプリ
+    private static func appsWithManyWindows(screens: [CGRect], target: Int) -> [pid_t] {
+        let me = ProcessInfo.processInfo.processIdentifier
+        var order: [pid_t] = []
+        for (pid, rects) in Desktops.windowMap().onScreen where pid != me {
+            let n = rects.filter { Geometry.bestScreenIndex(for: $0, screens: screens) == target }.count
+            if n >= 2 { order.append(pid) }
+        }
+        return order.filter { pid in
+            NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular
+        }
+    }
+
+    /// アプリを 1 つずつ手前に出して、メニューの「ウインドウ → すべてのウインドウを結合」を押す。
+    /// その項目がないアプリ（Chrome など）は飛ばす
+    private func mergeWindows(of pids: [pid_t], merged: [String], _ done: @escaping ([String]) -> Void) {
+        guard let pid = pids.first else { done(merged); return }
+        let rest = Array(pids.dropFirst())
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows) != nil else {
+            mergeWindows(of: rest, merged: merged, done)
+            return
+        }
+        app.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            var merged = merged
+            if let item = Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows),
+               AXUIElementPerformAction(item, kAXPressAction as CFString) == .success {
+                merged.append(app.localizedName ?? "アプリ")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.mergeWindows(of: rest, merged: merged, done) }
+        }
+    }
+
+    /// アプリのメニューバーから、名前が合う（押せる）項目を探す
+    static func findMenuItem(pid: pid_t, matching: (String) -> Bool) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        guard let bar = attribute(app, kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
+        func children(_ el: AXUIElement) -> [AXUIElement] {
+            (attribute(el, kAXChildrenAttribute) as? [AXUIElement]) ?? []
+        }
+        for top in children(bar as! AXUIElement) {          // 「ファイル」「ウインドウ」など
+            for menu in children(top) {                       // そのメニュー
+                for item in children(menu) {
+                    guard let title = attribute(item, kAXTitleAttribute) as? String, matching(title) else { continue }
+                    if (attribute(item, kAXEnabledAttribute) as? Bool) == false { return nil }
+                    return item
+                }
+            }
+        }
+        return nil
+    }
+
+    /// 2. 手前から settings.tidyKeep 個のアプリを残し、ほかを隠す
+    private func hideRest(target: Int, merged: [String]) {
+        let infos = Self.screenInfos()
+        guard target < infos.count else { return }
+        let frames = infos.map(\.frame)
         let me = ProcessInfo.processInfo.processIdentifier
         let regular = Set(NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && !$0.isHidden && $0.processIdentifier != me }
@@ -527,7 +596,10 @@ final class WindowMover {
         })
         let hide = TidyRule.toHide(order: order, hideable: hideable, keep: settings.tidyKeep)
         for pid in hide { NSRunningApplication(processIdentifier: pid)?.hide() }
-        onMoved?(hide.isEmpty ? "整理するものはありません" : "\(hide.count) 個のアプリを隠しました", infos[target].area)
+        var parts: [String] = []
+        if !merged.isEmpty { parts.append("\(merged.joined(separator: "・")) のウィンドウをタブにまとめました") }
+        if !hide.isEmpty { parts.append("\(hide.count) 個のアプリを隠しました") }
+        onMoved?(parts.isEmpty ? "整理するものはありません" : parts.joined(separator: "\n"), infos[target].area)
     }
 
     /// 隠れているアプリを全部表示する（メニュー）

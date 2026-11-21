@@ -543,6 +543,7 @@ struct GeneralTab: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Stepper("この画面を整理：手前の \(settings.tidyKeep) 個のアプリだけ残す", value: $settings.tidyKeep, in: 1...8)
+                    Toggle("整理するとき、同じアプリのウィンドウを 1 つにまとめる（タブにする）", isOn: $settings.tidyMerge)
                     Text("\(Shortcut.named("tidy").flatMap { settings.combo(for: $0)?.label } ?? "メニュー")で、マウスのある画面の今のデスクトップを整理します。残りのアプリは隠します（⌘H と同じ。Dock・⌘Tab・メニューの「隠したアプリを全部表示」で戻ります）。ほかの画面・ほかのデスクトップにもウィンドウがあるアプリは隠しません。")
                         .font(.caption).foregroundStyle(.secondary)
                 }

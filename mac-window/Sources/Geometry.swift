@@ -346,3 +346,11 @@ enum TidyRule {
         order.dropFirst(max(keep, 1)).filter { hideable.contains($0) }
     }
 }
+
+/// アプリのメニューの項目名（日本語・英語。表記ゆれ「ウインドウ／ウィンドウ」も同じとみなす）
+enum MenuTitle {
+    static func isMergeAllWindows(_ title: String) -> Bool {
+        let t = title.replacingOccurrences(of: "ウィンドウ", with: "ウインドウ").trimmingCharacters(in: .whitespaces)
+        return ["すべてのウインドウを結合", "Merge All Windows"].contains(t)
+    }
+}

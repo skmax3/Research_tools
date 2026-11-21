@@ -113,6 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if i < settings.presets.count { mover.apply(settings.presets[i]) } else { NSSound.beep() }
             case .toggleBarrier: break
             case .tidy: mover.tidy()
+            case .focus(let d): mover.focusNeighbor(d)
+            case .swap: mover.swapWithNeighbor()
             }
         }
     }
@@ -132,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         すでにオンに見えるのに効かないときは、一覧の MadoWari を選んで「−」で削除し、窓割りを開き直してから、もう一度オンにしてください（アップデートで署名が変わったときに起きます）。
 
-        許可したあとは、⌃⌥W の配置パネル、⌃⌥← / → などのショートカット、メニューバーのアイコン（縦に割った四角）から使えます。
+        許可したあとは、⌃⌥W の配置パネル、⌃⌥D・F・G（3 列）などのショートカット、メニューバーのアイコン（縦に割った四角）から使えます。
         """
         a.addButton(withTitle: "許可の設定を開く")
         a.addButton(withTitle: "あとで")

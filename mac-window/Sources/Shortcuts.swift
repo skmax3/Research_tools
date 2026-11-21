@@ -14,6 +14,8 @@ enum WindowAction {
     case preset(Int)    // 0 始まり
     case toggleBarrier  // 境目でカーソルを止める機能のオン・オフ
     case tidy           // 手前の数個のアプリだけ残し、ほかを隠す（マウスのある画面）
+    case focus(Direction) // 隣のウィンドウを手前に出す
+    case swap           // 手前のウィンドウと、右（なければ左）の隣のウィンドウの場所を入れ替える
 }
 
 /// ショートカットの一覧。登録（App.swift）・メニュー・設定画面で同じものを使う。
@@ -35,10 +37,10 @@ struct Shortcut: Identifiable {
 
     /// 手前のウィンドウを動かす
     static let windowKeys: [Shortcut] = [
-        s("left", kVK_LeftArrow, co, "左半分 → 左 2/3 → 左 1/3（押すたびに切り替え）",
-          .snap([.leftHalf, .leftTwoThirds, .leftThird])),
-        s("right", kVK_RightArrow, co, "右半分 → 右 2/3 → 右 1/3（押すたびに切り替え）",
-          .snap([.rightHalf, .rightTwoThirds, .rightThird])),
+        s("left", kVK_ANSI_Q, co, "左半分 → 左 2/3 → 左 1/3（押すたびに切り替え）",
+          .snap([.leftHalf, .leftTwoThirds, .leftThird]), key: "Q"),
+        s("right", kVK_ANSI_R, co, "右半分 → 右 2/3 → 右 1/3（押すたびに切り替え）",
+          .snap([.rightHalf, .rightTwoThirds, .rightThird]), key: "R"),
         s("up", kVK_UpArrow, co, "今の列の上半分 → 横幅いっぱいの上半分", .half(top: true)),
         s("down", kVK_DownArrow, co, "今の列の下半分 → 横幅いっぱいの下半分", .half(top: false)),
         s("third-left", kVK_ANSI_D, co, "左 1/3 → 左 1/3 の上 → 下", .snap([.leftThird, .leftThirdTop, .leftThirdBottom]), key: "D"),
@@ -52,10 +54,15 @@ struct Shortcut: Identifiable {
         s("top-right", kVK_ANSI_I, co, "右上 1/4", .snap([.topRight]), key: "I"),
         s("bottom-left", kVK_ANSI_J, co, "左下 1/4", .snap([.bottomLeft]), key: "J"),
         s("bottom-right", kVK_ANSI_K, co, "右下 1/4", .snap([.bottomRight]), key: "K"),
-        s("maximize", kVK_Return, co, "全体（最大化）", .snap([.maximize])),
+        s("maximize", kVK_ANSI_X, co, "全体（最大化）", .snap([.maximize]), key: "X"),
         s("display-left", kVK_LeftArrow, co | cmdKey, "左の画面へ移す（同じ割合で）", .display(-1)),
-        s("display-right", kVK_RightArrow, co | cmdKey, "右の画面へ移す（同じ割合で）", .display(1)),
-        s("undo", kVK_Delete, co, "元の位置に戻す", .undo),
+        s("display-right", kVK_Tab, co, "隣の画面へ移す（同じ割合で。画面が 2 つなら行き来）", .display(1)),
+        s("undo", kVK_ANSI_Z, co, "元に戻す（直前がまとめて並べた・整理なら、全部まとめて）", .undo, key: "Z"),
+        s("swap", kVK_ANSI_S, co, "隣のウィンドウと場所を入れ替える（右、なければ左）", .swap, key: "S"),
+        s("focus-left", kVK_ANSI_A, co | shiftKey, "左のウィンドウへ移る", .focus(.left), key: "A"),
+        s("focus-right", kVK_ANSI_D, co | shiftKey, "右のウィンドウへ移る", .focus(.right), key: "D"),
+        s("focus-up", kVK_ANSI_W, co | shiftKey, "上のウィンドウへ移る", .focus(.up), key: "W"),
+        s("focus-down", kVK_ANSI_S, co | shiftKey, "下のウィンドウへ移る", .focus(.down), key: "S"),
     ]
 
     /// 道具
@@ -63,7 +70,7 @@ struct Shortcut: Identifiable {
         s("panel", kVK_ANSI_W, co, "配置パネルを開く（マス目・プリセット・AI をマウスで）", .panel, key: "W"),
         s("ai", kVK_ANSI_A, co, "AI と並べる（作業中のウィンドウの横に AI を出す）", .ai, key: "A"),
         s("barrier", kVK_ANSI_B, co, "境目でカーソルを止める：オン・オフ", .toggleBarrier, key: "B"),
-        s("tidy", kVK_ANSI_H, co, "この画面を整理（手前の数個のアプリだけ残し、ほかを隠す）", .tidy, key: "H"),
+        s("tidy", kVK_ANSI_V, co, "この画面を整理（同じアプリはタブにまとめ、手前の数個だけ残してほかを隠す）", .tidy, key: "V"),
     ]
 
     /// 配置プリセット 1〜9

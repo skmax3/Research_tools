@@ -51,4 +51,5 @@
   `WindowMover.refit`（計算は `Geometry.swift` の `Fit.refit`、テストあり）で、ほかの列を細くして重ならないようにしている。
 - アプリの最小サイズは `AppSettings.minSizes`（バンドル ID → pt）。測る・覚えるのは `WindowMover.measureMinSize` / `learnMinSize`、
   配置パネルの警告・おすすめは `LayoutBoardModel` の `fits` / `slotNote` / `recommendation`（判定の計算は `Fit.check` / `Fit.recommend`、テストあり）。
+- ⌃⌥Z の「まとめて戻す」は `WindowMover` の `beginBatch` / `endBatch`（その間の `move` と `hideApp` を記録）。まとめて動かす処理を足したら、この 2 つで囲む。
 - 返答・UI・コメントは日本語。外部ライブラリは使わない。

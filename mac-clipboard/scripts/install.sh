@@ -27,7 +27,7 @@ fi
 
 echo "▶ ビルドしています（1〜2分）…"
 xcodebuild -project ClipShelf.xcodeproj -scheme ClipShelf -configuration Release \
-  -derivedDataPath build -quiet build
+  -destination "platform=macOS,arch=$(uname -m)" -derivedDataPath build -quiet build
 
 echo "▶ 動いているクリップ棚を終了します"
 osascript -e 'tell application id "io.github.skmax3.clipshelf" to quit' >/dev/null 2>&1 || true

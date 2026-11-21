@@ -33,7 +33,7 @@ fi
 
 echo "▶ ビルドしています（1〜2分）…"
 xcodebuild -project MadoWari.xcodeproj -scheme MadoWari -configuration Release \
-  -derivedDataPath build -quiet build
+  -destination "platform=macOS,arch=$(uname -m)" -derivedDataPath build -quiet build
 
 echo "▶ 動いている窓割りを終了します"
 osascript -e 'tell application id "io.github.skmax3.madowari" to quit' >/dev/null 2>&1 || true

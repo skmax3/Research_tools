@@ -354,3 +354,29 @@ enum MenuTitle {
         return ["すべてのウインドウを結合", "Merge All Windows"].contains(t)
     }
 }
+
+// MARK: - 隣のウィンドウ
+
+enum Direction: Equatable { case left, right, up, down }
+
+enum Neighbor {
+    /// from の枠から見て、dir の方向でいちばん近い枠の番号。
+    /// 向きの距離（中心どうし）を優先し、横なら縦、縦なら横に重なっていないものは後回しにする
+    static func find(from f: CGRect, candidates: [CGRect], dir: Direction) -> Int? {
+        var best: (i: Int, score: CGFloat)?
+        for (i, c) in candidates.enumerated() {
+            let dx = c.midX - f.midX, dy = c.midY - f.midY
+            let along: CGFloat, across: CGFloat, overlap: CGFloat
+            switch dir {
+            case .left: along = -dx; across = abs(dy); overlap = min(f.maxY, c.maxY) - max(f.minY, c.minY)
+            case .right: along = dx; across = abs(dy); overlap = min(f.maxY, c.maxY) - max(f.minY, c.minY)
+            case .up: along = -dy; across = abs(dx); overlap = min(f.maxX, c.maxX) - max(f.minX, c.minX)
+            case .down: along = dy; across = abs(dx); overlap = min(f.maxX, c.maxX) - max(f.minX, c.minX)
+            }
+            guard along > 10 else { continue }  // その向きにないもの（同じ場所に重なっているものも）は除く
+            let score = along + across * 0.5 + (overlap > 0 ? 0 : 100_000)
+            if best == nil || score < best!.score { best = (i, score) }
+        }
+        return best?.i
+    }
+}

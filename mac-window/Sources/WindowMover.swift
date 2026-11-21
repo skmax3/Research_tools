@@ -7,6 +7,14 @@ final class WindowMover {
     let settings: AppSettings
     /// 「元の位置に戻す」ための記録（新しいものが後ろ）
     private var history: [(window: AXUIElement, frame: CGRect)] = []
+    /// まとめて動かしたとき（配置案・プリセット・整理・AI と並べる・入れ替え）の記録。⌃⌥Z で全部まとめて戻す
+    private struct Batch {
+        var frames: [(window: AXUIElement, frame: CGRect)] = []
+        var hidden: [pid_t] = []
+        var open = true
+        let id = UUID()
+    }
+    private var batch: Batch?
     /// 続けて同じキーを押したときの切り替え用
     private var lastSnap: (window: AXUIElement, zones: [NamedZone], index: Int, time: Date)?
 
@@ -191,8 +199,35 @@ final class WindowMover {
         if let cur = Self.frame(of: w) {
             history.append((w, cur))
             if history.count > 100 { history.removeFirst() }
+            if batch?.open == true {
+                let recorded = batch?.frames.contains(where: { CFEqual($0.window, w) }) ?? true
+                if !recorded { batch?.frames.append((w, cur)) }
+            } else {
+                batch = nil  // 1 つだけ動かしたら、⌃⌥Z はそのウィンドウだけを戻す
+            }
         }
         Self.setFrame(w, r)
+    }
+
+    /// まとめて動かす記録を始める。終わったら endBatch（呼ばれなくても 20 秒で閉じる）
+    private func beginBatch() {
+        let b = Batch()
+        batch = b
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            if self?.batch?.id == b.id { self?.endBatch() }
+        }
+    }
+
+    private func endBatch() {
+        guard batch?.open == true else { return }
+        batch?.open = false
+        if batch?.frames.isEmpty == true && batch?.hidden.isEmpty == true { batch = nil }
+    }
+
+    /// アプリを隠す（まとめて戻せるように記録する）
+    private func hideApp(_ app: NSRunningApplication) {
+        guard app.hide() else { return }
+        if batch?.open == true { batch?.hidden.append(app.processIdentifier) }
     }
 
     // MARK: - アプリの最小サイズ
@@ -331,8 +366,18 @@ final class WindowMover {
         }
     }
 
-    /// 最後に動かす前の位置に戻す
+    /// 元に戻す。直前がまとめて動かす操作なら、動かしたウィンドウ全部と隠したアプリを戻す。
+    /// そうでなければ、手前のウィンドウを最後に動かす前の位置に戻す
     func undo() {
+        if let b = batch, !b.open {
+            batch = nil
+            for (w, f) in b.frames { Self.setFrame(w, f) }
+            for pid in b.hidden { NSRunningApplication(processIdentifier: pid)?.unhide() }
+            lastSnap = nil
+            let area = b.frames.last.flatMap { self.area(for: $0.frame) } ?? Self.mouseArea()
+            if let area { onMoved?("まとめて元に戻しました", area) }
+            return
+        }
         guard let w = Self.focusedWindow(),
               let i = history.lastIndex(where: { CFEqual($0.window, w) }) else { NSSound.beep(); return }
         let f = history[i].frame
@@ -340,6 +385,52 @@ final class WindowMover {
         Self.setFrame(w, f)
         lastSnap = nil
         if let area = self.area(for: f) { onMoved?("元の位置に戻しました", area) }
+    }
+
+    // MARK: - 隣のウィンドウ
+
+    /// 今のデスクトップに見えているウィンドウ（手前のウィンドウ w を除く）
+    private func visibleWindows(except w: AXUIElement?) -> [(window: AXUIElement, frame: CGRect)] {
+        let map = Desktops.windowMap().onScreen
+        let me = ProcessInfo.processInfo.processIdentifier
+        var list: [(AXUIElement, CGRect)] = []
+        for app in NSWorkspace.shared.runningApplications
+        where app.activationPolicy == .regular && !app.isHidden && app.processIdentifier != me {
+            for x in Self.windows(pid: app.processIdentifier)
+            where !Self.isMinimized(x) && Desktops.isOnCurrentDesktop(x, onScreen: map) {
+                if let w, CFEqual(w, x) { continue }
+                if let f = Self.frame(of: x) { list.append((x, f)) }
+            }
+        }
+        return list
+    }
+
+    /// 左右上下の隣のウィンドウを手前に出す（マウスを使わずに移る）
+    func focusNeighbor(_ dir: Direction) {
+        guard let w = Self.focusedWindow(), let f = Self.frame(of: w) else { NSSound.beep(); return }
+        let list = visibleWindows(except: w)
+        guard let i = Neighbor.find(from: f, candidates: list.map(\.frame), dir: dir) else { NSSound.beep(); return }
+        Self.raise(list[i].window)
+    }
+
+    /// 手前のウィンドウと、右（なければ左）の隣のウィンドウの場所を入れ替える
+    func swapWithNeighbor() {
+        guard let w = Self.focusedWindow(), let f = Self.frame(of: w) else { NSSound.beep(); return }
+        let list = visibleWindows(except: w)
+        let frames = list.map(\.frame)
+        guard let i = Neighbor.find(from: f, candidates: frames, dir: .right)
+                ?? Neighbor.find(from: f, candidates: frames, dir: .left) else { NSSound.beep(); return }
+        let other = list[i]
+        lastSnap = nil
+        beginBatch()
+        whenWindowed(w) { [weak self] in
+            guard let self else { return }
+            self.move(w, to: other.frame)
+            self.move(other.window, to: f)
+            Self.raise(w)
+            self.endBatch()
+            if let area = self.area(for: other.frame) { self.onMoved?("入れ替えました", area) }
+        }
     }
 
     /// マス目で指定した場所へ（配置パネルから）
@@ -370,6 +461,7 @@ final class WindowMover {
             return
         }
         // 2 つのアプリを並べるので、ステージマネージャがオンならオフにしてから
+        beginBatch()
         whenStageManagerOff(appCount: 2) { [weak self] in
             self?.pairWork(work, bid: bid, zones: zones)
         }
@@ -408,6 +500,7 @@ final class WindowMover {
             if let work {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { Self.raise(work) }
             }
+            self.endBatch()
             self.onMoved?("AI と並べました", area)
         }
     }
@@ -483,7 +576,7 @@ final class WindowMover {
             let minimized = Self.windows(pid: pid).filter(Self.isMinimized).count
             if HideRule.shouldHide(onScreen: map.onScreen[pid] ?? [], screens: frames, target: target,
                                    offScreen: map.offScreen[pid] ?? 0, minimized: minimized) {
-                app.hide()
+                hideApp(app)
             }
         }
     }
@@ -496,6 +589,7 @@ final class WindowMover {
         guard let target = NSScreen.screens.firstIndex(where: { NSMouseInRect(mouse, $0.frame, false) }),
               target < infos.count else { return }
         let frames = infos.map(\.frame)
+        beginBatch()
         // 1. 同じアプリのウィンドウが 2 つ以上あれば、1 つのウィンドウのタブにまとめる（Finder など）
         let many = settings.tidyMerge ? Self.appsWithManyWindows(screens: frames, target: target) : []
         guard !many.isEmpty else { hideRest(target: target, merged: [], failed: []); return }
@@ -618,7 +712,8 @@ final class WindowMover {
                                 minimized: Self.windows(pid: pid).filter(Self.isMinimized).count)
         })
         let hide = TidyRule.toHide(order: order, hideable: hideable, keep: settings.tidyKeep)
-        for pid in hide { NSRunningApplication(processIdentifier: pid)?.hide() }
+        for pid in hide { if let app = NSRunningApplication(processIdentifier: pid) { hideApp(app) } }
+        endBatch()
         var parts: [String] = []
         if !merged.isEmpty { parts.append("\(merged.joined(separator: "・")) のウィンドウをタブにまとめました") }
         if !failed.isEmpty { parts.append("\(failed.joined(separator: "・")) はまとめられませんでした") }
@@ -638,6 +733,7 @@ final class WindowMover {
     func arrange(_ items: [ArrangeItem], area: CGRect, name: String, hideOthers: Bool = false) {
         lastSnap = nil
         guard !items.isEmpty else { NSSound.beep(); return }
+        beginBatch()
         if hideOthers { self.hideOthers(keep: Set(items.map(\.bundleID)), area: area) }
         let apps = Set(items.map { $0.window.map { "pid:\(Self.pid(of: $0))" } ?? $0.bundleID })
         whenStageManagerOff(appCount: apps.count) { [weak self] in
@@ -678,6 +774,7 @@ final class WindowMover {
     }
 
     private func finishArrange(_ toFullScreen: [AXUIElement], area: CGRect, name: String) {
+        endBatch()
         // フルスクリーンにする指定のウィンドウは、並べ終わってから
         for (k, w) in toFullScreen.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + 0.8 * Double(k)) {

@@ -248,5 +248,21 @@ check("結合 表記ゆれ", MenuTitle.isMergeAllWindows("すべてのウィン�
 check("結合 英語", MenuTitle.isMergeAllWindows("Merge All Windows"))
 check("結合 ちがう", !MenuTitle.isMergeAllWindows("ウインドウを閉じる"))
 
+// 隣のウィンドウ（3 列 ＋ 右の列を上下）
+do {
+    let l = CGRect(x: 0, y: 0, width: 800, height: 1400)
+    let c = CGRect(x: 800, y: 0, width: 800, height: 1400)
+    let rt = CGRect(x: 1600, y: 0, width: 800, height: 700)
+    let rb = CGRect(x: 1600, y: 700, width: 800, height: 700)
+    let all = [l, c, rt, rb]
+    check("隣 右", Neighbor.find(from: l, candidates: all, dir: .right) == 1)
+    check("隣 左", Neighbor.find(from: c, candidates: all, dir: .left) == 0)
+    check("隣 右上を優先せず近いほう", Neighbor.find(from: c, candidates: all, dir: .right) != nil)
+    check("隣 下", Neighbor.find(from: rt, candidates: all, dir: .down) == 3)
+    check("隣 上", Neighbor.find(from: rb, candidates: all, dir: .up) == 2)
+    check("隣 なし", Neighbor.find(from: l, candidates: all, dir: .left) == nil)
+    check("隣 同じ場所は除く", Neighbor.find(from: l, candidates: [l], dir: .right) == nil)
+}
+
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")
 exit(failed == 0 ? 0 : 1)

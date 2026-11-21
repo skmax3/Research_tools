@@ -7,4 +7,4 @@ echo "▶ 最新のプログラムを取得しています"
 sh scripts/safe-pull.sh || { echo ""; echo "❌ 取得できませんでした。上の案内を確かめてください"; exit 1; }
 sh mac-clipboard/scripts/install.sh
 echo ""
-echo "このウィンドウは閉じて大丈夫です。"
+echo "🎉 クリップ棚を最新版（$(git log -1 --format=%h)）にしました。このウィンドウは閉じて大丈夫です。"

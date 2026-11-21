@@ -36,7 +36,6 @@ fi
 # 3. Xcode が自動で書き換えるプロジェクトファイルは、元に戻す（Actions が作ったものが正しい）
 git checkout -- mac-window/MadoWari.xcodeproj mac-clipboard/ClipShelf.xcodeproj 2>/dev/null
 
-echo "▶ 最新のプログラムを確認しています"
 git fetch -q origin main || { echo "❌ GitHub に接続できませんでした。ネットにつながっているか確かめてください"; exit 1; }
 
 # 4. 手元の変更（＋最新版と同じ名前の、Git に入っていないファイル）があれば、ブランチへ退避する
@@ -68,4 +67,4 @@ else
   git reset -q --hard origin/main
   echo "💾 main にあった手元だけのコミットを、ブランチ「$b」に退避しました"
 fi
-echo "✅ 最新版になりました（$(git log -1 --format=%h)）"
+echo "✅ 最新のプログラムを取得しました（$(git log -1 --format=%h)）"

@@ -34,9 +34,14 @@ osascript -e 'tell application id "io.github.skmax3.clipshelf" to quit' >/dev/nu
 sleep 1
 pkill -x ClipShelf >/dev/null 2>&1 || true
 
-# Apple ID で署名していない場合、入れ直すと前のアクセシビリティの許可は無効になる（設定画面ではオンに見えるのに効かない）。
-# 古い許可を消しておき、新しく許可し直せるようにする
-if [ ! -f Config/Local.xcconfig ]; then
+# macOS は「署名の決まり（designated requirement）」でアプリを見分ける。これが前と変わったのに古い許可が残っていると、
+# 設定画面ではオンに見えるのに効かない。変わったときだけ古い許可を消して、許可し直してもらう
+# （Apple ID で署名していれば毎回同じなので、2 回目からは消さない。署名なしだとビルドのたびに変わる）
+req() { codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p'; }
+old_req=""
+if [ -d /Applications/ClipShelf.app ]; then old_req=$(req /Applications/ClipShelf.app); fi
+new_req=$(req build/Build/Products/Release/ClipShelf.app)
+if [ -z "$new_req" ] || [ "$old_req" != "$new_req" ]; then
   tccutil reset Accessibility io.github.skmax3.clipshelf >/dev/null 2>&1 || true
   NEED_TRUST=1
 fi
@@ -54,5 +59,9 @@ if [ -n "$NEED_TRUST" ]; then
   echo ""
   echo "⚠️  自動貼り付けの許可をやり直す必要があります。"
   echo "   ⇧⌘X でパネルを出し、下に出る「許可の設定を開く」を押して、ClipShelf をオンにしてください。"
-  echo "   （毎回これが必要なのは、Apple ID で署名していないためです。sh mac-clipboard/scripts/setup-signing.sh で解消できます）"
+  if [ -f Config/Local.xcconfig ]; then
+    echo "   （署名が変わったため、今回だけ必要です。次からはアップデートしても許可は外れません）"
+  else
+    echo "   （毎回これが必要なのは、Apple ID で署名していないためです。sh mac-clipboard/scripts/setup-signing.sh で解消できます）"
+  fi
 fi

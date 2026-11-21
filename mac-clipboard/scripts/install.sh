@@ -8,6 +8,23 @@ if [ -d /Applications/Xcode.app ]; then
   export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 fi
 
+# 署名の設定（Config/Local.xcconfig。Git には入らない）がなければ、自動で用意する。
+# 1) 前にインストールした場所（リポジトリを取り直す前）にあればコピー
+# 2) なければ、Apple Development の証明書から作る（setup-signing.sh と同じ）
+if [ ! -f Config/Local.xcconfig ]; then
+  here="$(cd .. && pwd)"
+  for old in "$(defaults read io.github.skmax3.clipshelf repoPath 2>/dev/null)" "$(defaults read io.github.skmax3.madowari repoPath 2>/dev/null)"; do
+    if [ -n "$old" ] && [ "$old" != "$here" ] && [ -f "$old/mac-clipboard/Config/Local.xcconfig" ]; then
+      cp "$old/mac-clipboard/Config/Local.xcconfig" Config/Local.xcconfig
+      echo "▶ 前の場所（$old）から署名の設定を引き継ぎました"
+      break
+    fi
+  done
+fi
+if [ ! -f Config/Local.xcconfig ] && sh scripts/setup-signing.sh >/dev/null 2>&1; then
+  echo "▶ Apple ID の証明書から署名の設定を作りました（アクセシビリティの許可が外れなくなります）"
+fi
+
 echo "▶ ビルドしています（1〜2分）…"
 xcodebuild -project ClipShelf.xcodeproj -scheme ClipShelf -configuration Release \
   -derivedDataPath build -quiet build

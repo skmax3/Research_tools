@@ -130,6 +130,11 @@ AI が起動していなければ起動する。操作は作業中のウィン�
 
 試すだけなら `mac-window/MadoWari.xcodeproj` を Xcode で開いて ▶（Run）でもよい。
 
+## アップデートが止まったとき
+「最新版にアップデート…」は、手元にコミットしていない変更があっても止まらない。変更は「local-backup-日付」というブランチに退避してから最新版にする（消えない。GitHub Desktop の Current Branch から見られる）。中身はルートの `scripts/safe-pull.sh`。
+- `fatal: mmap failed` などで止まるのは、リポジトリが **iCloud Drive の中**（デスクトップ・書類を iCloud に同期している）にあるとき。iCloud の外（例: ホームフォルダの `GitHub` フォルダ）に取り直す（GitHub Desktop の File → Clone Repository…）。
+- 取り直したあとは、新しい場所で `install.sh` を 1 回実行する。署名の設定（`Config/Local.xcconfig`）は、前の場所から自動で引き継ぐ（なければ Apple ID の証明書から作る）。
+
 ## 開発メモ
 - 直し方・ファイルの役割・よくある変更の手順は [CLAUDE.md](CLAUDE.md)、仕様と今後の候補は [SPEC.md](SPEC.md)。
 - Xcode のプロジェクトは `project.yml`（XcodeGen）から GitHub Actions が自動生成してコミットする。設定変更は `project.yml` を編集する。

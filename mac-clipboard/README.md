@@ -69,6 +69,11 @@ iPhone で撮った写真・スクショやテキストを、AirDrop なしで M
       sh mac-clipboard/scripts/setup-signing.sh
       ```
 
+## アップデートが止まったとき
+「最新版にアップデート…」は、手元にコミットしていない変更があっても止まらない。変更は「local-backup-日付」というブランチに退避してから最新版にする（消えない。GitHub Desktop の Current Branch から見られる）。中身はルートの `scripts/safe-pull.sh`。
+- `fatal: mmap failed` などで止まるのは、リポジトリが **iCloud Drive の中**（デスクトップ・書類を iCloud に同期している）にあるとき。iCloud の外（例: ホームフォルダの `GitHub` フォルダ）に取り直す（GitHub Desktop の File → Clone Repository…）。
+- 取り直したあとは、新しい場所で `install.sh` を 1 回実行する。署名の設定（`Config/Local.xcconfig`）は、前の場所から自動で引き継ぐ（なければ Apple ID の証明書から作る）。
+
 ## 開発メモ
 - Xcode のプロジェクトは `project.yml`（XcodeGen）から GitHub Actions が自動生成してコミットする。設定変更は `project.yml` を編集する。
 - 署名は初期値が「このMacで実行（ad-hoc）」。この場合、ビルドし直すたびにアクセシビリティの許可が外れることがある。`scripts/setup-signing.sh` で Apple ID の開発用証明書に切り替えると外れない（`Config/Local.xcconfig` は Git に入らない）。

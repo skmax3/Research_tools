@@ -498,12 +498,14 @@ final class WindowMover {
         let frames = infos.map(\.frame)
         // 1. 同じアプリのウィンドウが 2 つ以上あれば、1 つのウィンドウのタブにまとめる（Finder など）
         let many = settings.tidyMerge ? Self.appsWithManyWindows(screens: frames, target: target) : []
-        guard !many.isEmpty else { hideRest(target: target, merged: []); return }
+        guard !many.isEmpty else { hideRest(target: target, merged: [], failed: []); return }
         let front = NSWorkspace.shared.frontmostApplication
-        mergeWindows(of: many, merged: []) { [weak self] merged in
+        mergeWindows(of: many, merged: []) { [weak self] merged, failed in
             // まとめ終わったら、もとのアプリを手前に戻してから 2. へ
             front?.activate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.hideRest(target: target, merged: merged) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self?.hideRest(target: target, merged: merged, failed: failed)
+            }
         }
     }
 
@@ -521,28 +523,49 @@ final class WindowMover {
     }
 
     /// アプリを 1 つずつ手前に出して、メニューの「ウインドウ → すべてのウインドウを結合」を押す。
-    /// その項目がないアプリ（Chrome など）は飛ばす
-    private func mergeWindows(of pids: [pid_t], merged: [String], _ done: @escaping ([String]) -> Void) {
-        guard let pid = pids.first else { done(merged); return }
+    /// この項目は、そのアプリが手前にないと押せない（灰色）ので、手前に出してから押せるようになるまで待つ。
+    /// 項目そのものがないアプリ（Chrome など）は飛ばす
+    private func mergeWindows(of pids: [pid_t], merged: [String], failed: [String] = [],
+                              _ done: @escaping ([String], [String]) -> Void) {
+        guard let pid = pids.first else { done(merged, failed); return }
         let rest = Array(pids.dropFirst())
         guard let app = NSRunningApplication(processIdentifier: pid),
-              Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows) != nil else {
-            mergeWindows(of: rest, merged: merged, done)
+              Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows, enabledOnly: false) != nil else {
+            mergeWindows(of: rest, merged: merged, failed: failed, done)
             return
         }
+        let name = app.localizedName ?? "アプリ"
+        // このデスクトップにあるウィンドウを手前にして、アプリごと手前に出す
+        let map = Desktops.windowMap().onScreen
+        if let w = Self.windows(pid: pid).first(where: { Desktops.isOnCurrentDesktop($0, onScreen: map) }) {
+            AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
+            Self.raise(w)
+        }
         app.activate()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            var merged = merged
-            if let item = Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows),
-               AXUIElementPerformAction(item, kAXPressAction as CFString) == .success {
-                merged.append(app.localizedName ?? "アプリ")
+        pressWhenEnabled(pid: pid, tries: 0) { [weak self] ok in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self?.mergeWindows(of: rest, merged: ok ? merged + [name] : merged,
+                                   failed: ok ? failed : failed + [name], done)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.mergeWindows(of: rest, merged: merged, done) }
         }
     }
 
-    /// アプリのメニューバーから、名前が合う（押せる）項目を探す
-    static func findMenuItem(pid: pid_t, matching: (String) -> Bool) -> AXUIElement? {
+    /// メニューの項目が押せるようになるまで（最大 2 秒）待って押す
+    private func pressWhenEnabled(pid: pid_t, tries: Int, _ done: @escaping (Bool) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            if let item = Self.findMenuItem(pid: pid, matching: MenuTitle.isMergeAllWindows, enabledOnly: true),
+               AXUIElementPerformAction(item, kAXPressAction as CFString) == .success {
+                done(true)
+            } else if tries < 8 {
+                self?.pressWhenEnabled(pid: pid, tries: tries + 1, done)
+            } else {
+                done(false)
+            }
+        }
+    }
+
+    /// アプリのメニューバーから、名前が合う項目を探す。enabledOnly なら押せるものだけ
+    static func findMenuItem(pid: pid_t, matching: (String) -> Bool, enabledOnly: Bool) -> AXUIElement? {
         let app = AXUIElementCreateApplication(pid)
         guard let bar = attribute(app, kAXMenuBarAttribute), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
         func children(_ el: AXUIElement) -> [AXUIElement] {
@@ -552,7 +575,7 @@ final class WindowMover {
             for menu in children(top) {                       // そのメニュー
                 for item in children(menu) {
                     guard let title = attribute(item, kAXTitleAttribute) as? String, matching(title) else { continue }
-                    if (attribute(item, kAXEnabledAttribute) as? Bool) == false { return nil }
+                    if enabledOnly && (attribute(item, kAXEnabledAttribute) as? Bool) == false { return nil }
                     return item
                 }
             }
@@ -561,7 +584,7 @@ final class WindowMover {
     }
 
     /// 2. 手前から settings.tidyKeep 個のアプリを残し、ほかを隠す
-    private func hideRest(target: Int, merged: [String]) {
+    private func hideRest(target: Int, merged: [String], failed: [String]) {
         let infos = Self.screenInfos()
         guard target < infos.count else { return }
         let frames = infos.map(\.frame)
@@ -598,6 +621,7 @@ final class WindowMover {
         for pid in hide { NSRunningApplication(processIdentifier: pid)?.hide() }
         var parts: [String] = []
         if !merged.isEmpty { parts.append("\(merged.joined(separator: "・")) のウィンドウをタブにまとめました") }
+        if !failed.isEmpty { parts.append("\(failed.joined(separator: "・")) はまとめられませんでした") }
         if !hide.isEmpty { parts.append("\(hide.count) 個のアプリを隠しました") }
         onMoved?(parts.isEmpty ? "整理するものはありません" : parts.joined(separator: "\n"), infos[target].area)
     }

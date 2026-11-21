@@ -40,9 +40,14 @@ osascript -e 'tell application id "io.github.skmax3.madowari" to quit' >/dev/nul
 sleep 1
 pkill -x MadoWari >/dev/null 2>&1 || true
 
-# Apple ID で署名していない場合、入れ直すと前のアクセシビリティの許可は無効になる（設定画面ではオンに見えるのに効かない）。
-# 古い許可を消しておき、新しく許可し直せるようにする
-if [ ! -f Config/Local.xcconfig ]; then
+# macOS は「署名の決まり（designated requirement）」でアプリを見分ける。これが前と変わったのに古い許可が残っていると、
+# 設定画面ではオンに見えるのに効かない。変わったときだけ古い許可を消して、許可し直してもらう
+# （Apple ID で署名していれば毎回同じなので、2 回目からは消さない。署名なしだとビルドのたびに変わる）
+req() { codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p'; }
+old_req=""
+if [ -d /Applications/MadoWari.app ]; then old_req=$(req /Applications/MadoWari.app); fi
+new_req=$(req build/Build/Products/Release/MadoWari.app)
+if [ -z "$new_req" ] || [ "$old_req" != "$new_req" ]; then
   tccutil reset Accessibility io.github.skmax3.madowari >/dev/null 2>&1 || true
   NEED_TRUST=1
 fi
@@ -60,5 +65,9 @@ if [ -n "$NEED_TRUST" ]; then
   echo ""
   echo "⚠️  アクセシビリティの許可をやり直す必要があります（ウィンドウを動かすのに必要）。"
   echo "   出てくる案内に従って、システム設定で MadoWari をオンにしてください。"
-  echo "   （毎回これが必要なのは、Apple ID で署名していないためです。sh mac-window/scripts/setup-signing.sh で解消できます）"
+  if [ -f Config/Local.xcconfig ]; then
+    echo "   （署名が変わったため、今回だけ必要です。次からはアップデートしても許可は外れません）"
+  else
+    echo "   （毎回これが必要なのは、Apple ID で署名していないためです。sh mac-window/scripts/setup-signing.sh で解消できます）"
+  fi
 fi

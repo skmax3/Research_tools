@@ -72,6 +72,7 @@ iPhone で撮った写真・スクショやテキストを、AirDrop なしで M
 ## アップデートが止まったとき
 「最新版にアップデート…」は、手元にコミットしていない変更があっても止まらない。変更は「local-backup-日付」というブランチに退避してから最新版にする（消えない。GitHub Desktop の Current Branch から見られる）。中身はルートの `scripts/safe-pull.sh`。
 - `fatal: mmap failed` などで止まるのは、リポジトリが **iCloud Drive の中**（デスクトップ・書類を iCloud に同期している）にあるとき。iCloud の外（例: ホームフォルダの `GitHub` フォルダ）に取り直す（GitHub Desktop の File → Clone Repository…）。
+- **許可がオンに見えるのに効かない**とき: 署名が変わると、一覧のスイッチは古いアプリへの許可のまま残る。一覧で選んで「−」で削除し、アプリを開き直して許可し直す（install.sh は、署名が変わったときに自動で古い許可を消す）。
 - 取り直したあとは、新しい場所で `install.sh` を 1 回実行する。署名の設定（`Config/Local.xcconfig`）は、前の場所から自動で引き継ぐ（なければ Apple ID の証明書から作る）。
 
 ## 開発メモ

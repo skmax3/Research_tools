@@ -13,6 +13,8 @@ public sealed class Config
     public bool AutoSend { get; set; }
     /// 届いたものを、すぐクリップボードに入れる（Ctrl+V で貼れる）
     public bool AutoCopy { get; set; } = true;
+    /// 記録を一時停止する（コピーを履歴に入れない・自動で送らない）
+    public bool Paused { get; set; }
     public long LastSeq { get; set; }
 
     public bool Paired => Secret.Length > 0;

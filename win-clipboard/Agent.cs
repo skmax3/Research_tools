@@ -10,6 +10,7 @@ public sealed record Received(string Device, ClipContent Content, DateTime At);
 public sealed class Agent : IDisposable
 {
     readonly Config config;
+    readonly HistoryStore history;
     readonly SynchronizationContext ui;
     readonly SemaphoreSlim pollGate = new(1, 1);
     readonly List<Received> recent = new();
@@ -35,9 +36,10 @@ public sealed class Agent : IDisposable
     public bool Connected { get; private set; }
     public IReadOnlyList<Received> Recent => recent;
 
-    public Agent(Config config, SynchronizationContext ui)
+    public Agent(Config config, HistoryStore history, SynchronizationContext ui)
     {
         this.config = config;
+        this.history = history;
         this.ui = ui;
     }
 
@@ -239,7 +241,11 @@ public sealed class Agent : IDisposable
     /// 届いたものを受け取る（UI スレッド）
     void Deliver(List<Received> got, bool silent)
     {
-        foreach (var r in got) recent.Insert(0, r);
+        foreach (var r in got)
+        {
+            recent.Insert(0, r);
+            history.Add(r.Content, r.Device, remote: true);
+        }
         while (recent.Count > 10) recent.RemoveAt(recent.Count - 1);
         if (silent)
         {
@@ -274,20 +280,21 @@ public sealed class Agent : IDisposable
 
     // ---- 送信 ----
 
-    /// クリップボードが変わったとき（UI スレッド）。自動で送る設定のときだけ送る
+    /// クリップボードが変わったとき（UI スレッド）。履歴に入れ、自動で送る設定なら送る
     public void OnClipboardChanged()
     {
-        if (!config.AutoSend || !config.Paired) return;
+        if (config.Paused) return;
         if (DateTime.UtcNow < suppressUntil) return;
         var content = ClipboardIO.Read();
         if (content is null) return;
         var hash = content.Hash;
         if (hash == lastAppliedHash) return;
-        // 1回のコピーで、変更の知らせが何度も来ることがある。同じものは、続けて送らない
+        // 1回のコピーで、変更の知らせが何度も来ることがある。同じものは、続けて扱わない
         if (hash == lastSentHash && DateTime.UtcNow - lastSentAt < TimeSpan.FromSeconds(3)) return;
         lastSentHash = hash;
         lastSentAt = DateTime.UtcNow;
-        Send(content, quiet: true);
+        history.Add(content, Win32.ProcessName(Win32.Foreground()), remote: false);
+        if (config.AutoSend && config.Paired) Send(content, quiet: true);
     }
 
     /// 今のクリップボードを、すぐ送る（ショートカットキー・メニュー）
@@ -302,6 +309,49 @@ public sealed class Agent : IDisposable
         lastSentHash = content.Hash;
         lastSentAt = DateTime.UtcNow;
         Send(content, quiet: false);
+    }
+
+    /// 履歴から選んだものを、ほかの端末へ送る
+    public void SendItems(IReadOnlyList<HistoryItem> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            var content = history.ToContent(items[i]);
+            if (content is not null) Send(content, quiet: i < items.Count - 1);
+        }
+    }
+
+    /// 履歴の1つを、クリップボードに入れる
+    public void CopyItem(HistoryItem item)
+    {
+        var content = history.ToContent(item);
+        if (content is not null) Apply(content);
+    }
+
+    /// 履歴から選んだものを、前に使っていたアプリへ貼り付ける。
+    /// 複数なら、順に貼る（テキストの間には Enter を入れる）。together なら、テキストを改行でつないで1回で貼る
+    public async Task PasteAsync(IReadOnlyList<HistoryItem> items, bool together, IntPtr target)
+    {
+        if (items.Count == 0) return;
+        var contents = items.Select(history.ToContent).Where(c => c is not null).Select(c => c!).ToList();
+        if (contents.Count == 0) return;
+        if (together && contents.All(c => c.Kind == "text"))
+        {
+            var joined = string.Join("\n", contents.Select(c => System.Text.Encoding.UTF8.GetString(c.Body)));
+            contents = new List<ClipContent> { new("text", "", "text/plain", System.Text.Encoding.UTF8.GetBytes(joined)) };
+        }
+        await Task.Delay(120);  // 窓が閉じて、前のアプリに入力が戻るのを待つ
+        Win32.Activate(target);
+        await Task.Delay(120);
+        for (var i = 0; i < contents.Count; i++)
+        {
+            Apply(contents[i]);
+            await Task.Delay(120);
+            Win32.SendPaste();
+            await Task.Delay(220);
+            if (i < contents.Count - 1 && contents[i].Kind == "text") Win32.SendEnter();
+            await Task.Delay(120);
+        }
     }
 
     void Send(ClipContent content, bool quiet)

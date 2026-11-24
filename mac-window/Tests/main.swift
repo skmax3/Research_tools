@@ -130,13 +130,22 @@ check("境目 数え直し", s5 == CGPoint(x: 1010, y: 1439))
 // 下に画面がない所（MacBook の横）は、macOS が止めるので何もしない
 var eb3 = EdgeBarrier()
 check("境目 下に画面なし", eb3.filter(from: CGPoint(x: 100, y: 1430), to: CGPoint(x: 100, y: 1445), screens: both, now: t0) == nil)
-// 上へ戻るとき（MacBook → Dell）は止めない（下だけの設定）
-check("境目 上へは止めない", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0) == nil)
-// 上下左右すべての設定なら、上へも止める
-eb3.allSides = true
-check("境目 すべての境目", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+// 上へ戻るとき（MacBook → Dell）も、MacBook の上の端（メニューバー）で止める
+check("境目 上へも止める（メニューバー）", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
       == CGPoint(x: 1000, y: 1440))
+// 左右の境目は、上下左右すべての設定のときだけ
+let side = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1000, y: 0, width: 1000, height: 800)]
+var eb4 = EdgeBarrier()
+check("境目 左右は止めない", eb4.filter(from: CGPoint(x: 990, y: 100), to: CGPoint(x: 1010, y: 100), screens: side, now: t0) == nil)
+eb4.allSides = true
+check("境目 すべてなら左右も", eb4.filter(from: CGPoint(x: 990, y: 100), to: CGPoint(x: 1010, y: 100), screens: side, now: t0)
+      == CGPoint(x: 999, y: 100))
+// 重なった画面（仮想画面・ミラー）の中の動きは、境目とみなさない（画面の途中で止まらない）
+var eb5 = EdgeBarrier()
+let virtual = CGRect(x: 0, y: 700, width: 1200, height: 900)  // Dell の下の方に重なっている
+check("境目 重なった画面の中", eb5.filter(from: CGPoint(x: 600, y: 750), to: CGPoint(x: 600, y: 650), screens: [virtual, dell, mac], now: t0) == nil)
 // 同じ画面の中の動きは何もしない
+eb3.allSides = true
 check("境目 画面の中", eb3.filter(from: CGPoint(x: 10, y: 10), to: CGPoint(x: 20, y: 20), screens: both, now: t0) == nil)
 
 // キーの表示

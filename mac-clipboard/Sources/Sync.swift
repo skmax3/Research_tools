@@ -18,7 +18,7 @@ final class SyncManager: ObservableObject {
     @Published private(set) var lastReceived = ""
 
     /// iPhone から新しく届いたとき（件数）
-    var onReceived: ((Int) -> Void)?
+    var onReceived: ((Int, String) -> Void)?
     /// iPhone へ送ったとき（成功か、表示するメッセージ）
     var onSent: ((Bool, String) -> Void)?
 
@@ -34,6 +34,8 @@ final class SyncManager: ObservableObject {
     private var reconnectDelay = 2.0
     private var timers: [Timer] = []
     private var started = false
+    /// 最後に受け取ったものを送ってきた端末の名前（メニューバーの表示用）
+    private var lastSender = "他の端末"
 
     init(store: ClipStore, paster: Paster) {
         self.store = store
@@ -86,6 +88,14 @@ final class SyncManager: ObservableObject {
         guard let secret else { return nil }
         let s = relay.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? relay
         return "\(Self.pairPage)#k=\(secret)&s=\(s)"
+    }
+
+    /// Windows・Android アプリに貼り付けるコード。iPhone のペアリングコードに、高速モードの鍵（秘密鍵）が付く。
+    /// 同じ鍵を持つ端末は、iPhone のショートカットから高速モードで送られたものも開ける。自分の端末にだけ貼り付ける
+    var deviceCode: String? {
+        guard let base = pairingURL, let quickKey else { return nil }
+        let q = SyncCrypto.base64url(quickKey.x963Representation)
+        return base.components(separatedBy: "#").last.map { "\($0)&q=\(q)" } ?? base
     }
 
     /// 高速モードの送信先。iPhone の「ショートカット」に貼り付ける。部屋ID を含むので、人に見せない
@@ -292,7 +302,7 @@ final class SyncManager: ObservableObject {
         let finish: (Data) -> Void = { [weak self] blob in
             guard let self else { return }
             self.advance(to: it.seq)
-            if let opened = self.decrypt(blob), self.accept(opened) {
+            if let opened = self.decrypt(blob), self.accept(opened, device: it.device) {
                 self.noteReceived(it)
                 next(1)
             } else {
@@ -344,15 +354,26 @@ final class SyncManager: ObservableObject {
     }
 
     /// 復号できたものを履歴に入れる
-    private func accept(_ opened: SyncCrypto.Opened) -> Bool {
+    /// 送ってきた端末の名前（中継サーバーの x-device）を、表示用の名前とアイコン用の ID にする
+    private static func deviceLabel(_ device: String) -> (name: String, id: String) {
+        let d = device.lowercased()
+        if d.hasPrefix("iphone") { return ("iPhone", "ios") }
+        if d.hasPrefix("windows") { return ("Windows", "windows") }
+        if d.hasPrefix("android") { return ("Android", "android") }
+        return (device.isEmpty ? "他の端末" : device, device)
+    }
+
+    private func accept(_ opened: SyncCrypto.Opened, device: String) -> Bool {
         let body = opened.body
+        let label = Self.deviceLabel(device)
+        lastSender = label.name
         switch opened.meta["k"] as? String {
         case "text":
             guard let text = String(data: body, encoding: .utf8), !text.isEmpty else { return false }
             var item = ClipItem(kind: .text)
             item.text = text
-            item.app = "iPhone"
-            item.appID = "ios"
+            item.app = label.name
+            item.appID = label.id
             item.hash = ClipStore.hash(body)
             store.add(item)
             return true
@@ -374,8 +395,8 @@ final class SyncManager: ObservableObject {
             var item = ClipItem(kind: .image)
             (item.width, item.height) = ImageUtil.pixelSize(img)
             item.text = opened.meta["name"] as? String ?? ""
-            item.app = "iPhone"
-            item.appID = "ios"
+            item.app = label.name
+            item.appID = label.id
             item.hash = ClipStore.hash(body)
             store.add(item, image: data, imageExt: ext, thumb: ImageUtil.thumbnail(img, maxSide: 360))
             return true
@@ -388,7 +409,7 @@ final class SyncManager: ObservableObject {
         if Settings.syncAutoCopy, let newest = store.items.first {
             paster.copy(newest, plain: false)
         }
-        onReceived?(count)
+        onReceived?(count, lastSender)
     }
 
     // MARK: - 送信（Mac → iPhone）

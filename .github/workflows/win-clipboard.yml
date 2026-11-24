@@ -1,0 +1,58 @@
+# Windows 版クリップ棚（win-clipboard/）を GitHub の Windows 環境でテスト・ビルドする。
+# main に入ると、1つの exe にまとめて、リリース「clipshelf-win-latest」に置く（ダウンロードして使う）。
+name: win-clipboard
+
+on:
+  push:
+    paths:
+      - 'win-clipboard/**'
+      - 'win-clipboard.Tests/**'
+      - '.github/workflows/win-clipboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: win-clipboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: テスト（暗号・ペアリングコード）
+        run: dotnet run --project win-clipboard.Tests -c Release
+
+      - name: ビルド（1つの exe にまとめる）
+        run: >
+          dotnet publish win-clipboard/ClipShelfWin.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -o out
+
+      - name: zip にする
+        shell: pwsh
+        run: |
+          Get-ChildItem out | Format-Table Name, Length
+          Compress-Archive -Path out/ClipShelfWin.exe -DestinationPath ClipShelfWin.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClipShelfWin
+          path: ClipShelfWin.zip
+
+      - name: 最新版として公開（main のみ）
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete clipshelf-win-latest --yes --cleanup-tag 2>&1 | Out-Null
+          $global:LASTEXITCODE = 0
+          gh release create clipshelf-win-latest ClipShelfWin.zip --target ${{ github.sha }} --title "クリップ棚（Windows）最新版" --notes "main の最新のビルドです。zip を展開して ClipShelfWin.exe を開きます。使い方は win-clipboard/README.md を参照。"

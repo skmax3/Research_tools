@@ -57,6 +57,7 @@ struct PairingView: View {
     @State private var copied = false
     @State private var confirmReset = false
     @State private var quickCopied = false
+    @State private var deviceCopied = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -87,6 +88,18 @@ struct PairingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    if let deviceCode = sync.deviceCode {
+                        Button(deviceCopied ? "コピーしました" : "Windows・Android アプリ用のコードをコピー") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(deviceCode, forType: .string)
+                            deviceCopied = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { deviceCopied = false }
+                        }
+                        Text("Windows・Android のアプリの最初の画面に貼り付けます。このコードには高速モードの鍵が入っているので、自分の端末以外には送らないでください。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
 

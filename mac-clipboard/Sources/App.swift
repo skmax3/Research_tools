@@ -52,8 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         paster = Paster(store: store, watcher: watcher)
         sync = SyncManager(store: store, paster: paster)
         pairing = PairingWindowController(sync: sync)
-        sync.onReceived = { [weak self] count in
-            self?.flashStatus(symbol: "tray.and.arrow.down.fill", title: " iPhone から\(count)件", seconds: 4)
+        sync.onReceived = { [weak self] count, from in
+            self?.flashStatus(symbol: "tray.and.arrow.down.fill", title: " \(from)から\(count)件", seconds: 4)
             NSSound(named: "Tink")?.play()
         }
         sync.onSent = { [weak self] ok, message in

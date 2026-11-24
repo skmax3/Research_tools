@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ClipShelfWin.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <!-- 画面を持たない部分（暗号・ペアリングコードの読み取り）だけを、そのまま取り込んで確かめる -->
+  <ItemGroup>
+    <Compile Include="..\win-clipboard\SyncCrypto.cs" Link="SyncCrypto.cs" />
+    <Compile Include="..\win-clipboard\PairCode.cs" Link="PairCode.cs" />
+  </ItemGroup>
+
+</Project>

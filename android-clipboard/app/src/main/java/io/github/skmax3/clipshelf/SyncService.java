@@ -320,6 +320,8 @@ public final class SyncService extends Service {
                 new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PI_FLAGS);
         PendingIntent send = PendingIntent.getActivity(this, 1,
                 new Intent(this, SendClipboardActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PI_FLAGS);
+        PendingIntent panel = PendingIntent.getActivity(this, 3,
+                new Intent(this, PanelActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PI_FLAGS);
         PendingIntent stop = PendingIntent.getService(this, 2, new Intent(this, SyncService.class).setAction(ACTION_STOP), PI_FLAGS);
         return new Notification.Builder(this, CHANNEL_STATUS)
                 .setSmallIcon(R.drawable.ic_stat)
@@ -328,6 +330,7 @@ public final class SyncService extends Service {
                 .setOngoing(true)
                 .setContentIntent(open)
                 .addAction(new Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_stat), "今のコピーを送る", send).build())
+                .addAction(new Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_stat), "履歴を開く", panel).build())
                 .addAction(new Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_stat), "接続を切る", stop).build())
                 .build();
     }

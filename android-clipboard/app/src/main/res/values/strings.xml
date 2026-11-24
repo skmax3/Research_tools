@@ -3,4 +3,6 @@
     <string name="app_name">クリップ棚</string>
     <string name="send_clipboard">今のコピーを送る</string>
     <string name="send_clipboard_long">今のコピーを、ほかの端末へ送る</string>
+    <string name="open_panel">履歴を開く</string>
+    <string name="open_panel_long">クリップ棚の履歴を開く</string>
 </resources>

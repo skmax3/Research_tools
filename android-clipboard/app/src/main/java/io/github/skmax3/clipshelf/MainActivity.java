@@ -140,6 +140,8 @@ public final class MainActivity extends Activity implements Inbox.Listener {
     private void renderPaired(LinearLayout root) {
         root.addView(text(SyncService.running ? "ペアリング済み・バックグラウンドで待っています" : "ペアリング済み・待ち受けは止まっています", 14, false));
 
+        root.addView(button("履歴パネルを開く（コピーしたものの一覧）",
+                v -> startActivity(new Intent(this, PanelActivity.class))));
         root.addView(button("今のクリップボードを、ほかの端末へ送る",
                 v -> startActivity(new Intent(this, SendClipboardActivity.class))));
 
@@ -157,12 +159,14 @@ public final class MainActivity extends Activity implements Inbox.Listener {
             render();
         }));
 
-        root.addView(text("届いたもの（直近10件）", 16, true));
+        root.addView(text("最近の履歴（くわしくは「履歴パネル」で）", 16, true));
         java.util.List<Inbox.Entry> entries = Inbox.list();
         if (entries.isEmpty()) {
             root.addView(text("まだ届いていません。Mac・iPhone・Windows から送ると、ここに出ます。", 14, false));
         }
+        int shown = 0;
         for (Inbox.Entry e : entries) {
+            if (++shown > 10) break;
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -183,6 +187,8 @@ public final class MainActivity extends Activity implements Inbox.Listener {
         root.addView(text("・送る: ほかのアプリの共有メニューで「クリップ棚」を選ぶ（写真・スクショ・テキスト）\n"
                 + "・コピーしたものを送る: 画面の上から引き下げて、クイック設定のタイル「今のコピーを送る」をタップ"
                 + "（タイルは、クイック設定の編集（鉛筆）から追加）。アプリのアイコンの長押しや、通知のボタンからも送れる\n"
+                + "・履歴パネル（Mac の ⇧⌘X に当たる）: 画面の上から引き下げて、クイック設定のタイル「履歴を開く」をタップ（鉛筆から追加）。"
+                + "アイコンの長押しや、通知のボタンからも開ける。開いたときに、今のコピーも履歴に入る。カードをタップ＝コピー、長押し＝送る・ピン留め・削除\n"
                 + "・届いたもの: 設定がオンなら、クリップボードに入っているので、そのまま貼り付けられる", 14, false));
 
         root.addView(text("バックグラウンドで止まらないようにする", 16, true));

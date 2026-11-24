@@ -7,7 +7,7 @@ FWR 研究で使う小さなWebツールをまとめたリポジトリです。�
 | ツール | フォルダ | 説明 |
 |---|---|---|
 | 写真寸法メモ | [`photo-memo/`](photo-memo/) | 写真に矢印・寸法線・コメント・番号を書き込み、画像として書き出す |
-| Macへ送る | [`clip-send/`](clip-send/) | iPhone の写真・スクショ・テキストを、端末で暗号化して Mac のクリップ棚へ送る（AirDrop の代わり。中継サーバーは [`clip-relay/`](clip-relay/)） |
+| Macへ送る | [`clip-send/`](clip-send/) | iPhone の写真・スクショ・テキストを、端末で暗号化して Mac のクリップ棚へ送る（AirDrop の代わり。すべての端末の履歴を色ラベルつきで見られる。中継サーバーは [`clip-relay/`](clip-relay/)） |
 | 文献管理 | [`bunken/`](bunken/) | 卒論用の文献管理。DOI・BibTeX・PDF フォルダから登録し、状態・タグ・メモで整理、BibTeX（LaTeX）と参考文献リストに書き出す |
 | クリップボード | [`clipboard/`](clipboard/) | テキスト・画像・ファイルをためて、順番を決めてコピー・番号付き保存。表→Markdown/LaTeX変換や記号パレットも |
 
@@ -15,8 +15,8 @@ FWR 研究で使う小さなWebツールをまとめたリポジトリです。�
 
 | アプリ | フォルダ | 説明 |
 |---|---|---|
-| クリップ棚（Android） | [`android-clipboard/`](android-clipboard/) | バックグラウンドで待ち続けて、Mac・iPhone・Windows から届いたものをクリップボードに入れる。共有メニュー・クイック設定のタイルで送る。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-android-latest) |
-| クリップ棚（Windows） | [`win-clipboard/`](win-clipboard/) | タスクトレイに住んで、Mac・iPhone とクリップボードをやり取り（Ctrl+Alt+S で送信、届いたら Ctrl+V で貼れる）。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-win-latest) |
+| クリップ棚（Android） | [`android-clipboard/`](android-clipboard/) | バックグラウンドで待ち続けて、Mac・iPhone・Windows から届いたものをクリップボードに入れる。共有メニュー・クイック設定のタイルで送る。タイルから履歴パネルも開ける。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-android-latest) |
+| クリップ棚（Windows） | [`win-clipboard/`](win-clipboard/) | タスクトレイに住んで、Mac・iPhone・Android とクリップボードをやり取り（Ctrl+Alt+X で Mac と同じ履歴パネル、Ctrl+Alt+S で送信、届いたら Ctrl+V で貼れる）。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-win-latest) |
 | クリップ棚 | [`mac-clipboard/`](mac-clipboard/) | ⌘C を自動記録し、⇧⌘X で画面下から履歴を出して貼り付け |
 | 窓割り | [`mac-window/`](mac-window/) | 4K モニター向けのウィンドウ配置。⌃⌥A で作業中のウィンドウの横に AI を出す、⌃⌥1〜9 で「AI＋執筆＋PDF」などを一発で並べる |
 

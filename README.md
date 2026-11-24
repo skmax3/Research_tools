@@ -8,6 +8,7 @@ FWR 研究で使う小さなWebツールをまとめたリポジトリです。�
 |---|---|---|
 | 写真寸法メモ | [`photo-memo/`](photo-memo/) | 写真に矢印・寸法線・コメント・番号を書き込み、画像として書き出す |
 | Macへ送る | [`clip-send/`](clip-send/) | iPhone の写真・スクショ・テキストを、端末で暗号化して Mac のクリップ棚へ送る（AirDrop の代わり。中継サーバーは [`clip-relay/`](clip-relay/)） |
+| 文献管理 | [`bunken/`](bunken/) | 卒論用の文献管理。DOI・BibTeX・PDF フォルダから登録し、状態・タグ・メモで整理、BibTeX（LaTeX）と参考文献リストに書き出す |
 | クリップボード | [`clipboard/`](clipboard/) | テキスト・画像・ファイルをためて、順番を決めてコピー・番号付き保存。表→Markdown/LaTeX変換や記号パレットも |
 
 ### Mac アプリ（Xcode でビルドして使う）

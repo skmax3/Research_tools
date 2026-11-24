@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>文献管理</title>
+<meta name="theme-color" content="#0a84ff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="文献管理">
+<style>
+:root{--bg:#f4f5f8;--card:#fff;--ink:#1c1c1e;--muted:#6e6e73;--line:#dcdde3;--accent:#0a84ff;--soft:#eaf3ff;--warn:#d70015;
+  --s-unread:#8e8e93;--s-reading:#ff9f0a;--s-read:#30b158;--s-cite:#0a84ff}
+@media (prefers-color-scheme:dark){:root{--bg:#16181d;--card:#1f2228;--ink:#f2f2f7;--muted:#9a9aa2;--line:#33363d;--soft:#1b2a40;--warn:#ff6961}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  padding:0 max(12px,env(safe-area-inset-right)) 40px max(12px,env(safe-area-inset-left))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--warn)}
+button:disabled{opacity:.45;cursor:default}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 9px;width:100%}
+textarea{resize:vertical;min-height:64px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(10px,env(safe-area-inset-top)) 0 8px;max-width:980px;margin:0 auto}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0;margin-right:auto}
+h1 a{color:var(--muted);text-decoration:none;font-weight:400;font-size:14px;margin-right:6px}
+#q{flex:1 1 220px;min-width:0}
+.filters{margin-top:8px}
+.filters select{width:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:2px 10px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:980px;margin:0 auto}
+.info{color:var(--muted);font-size:13px;margin:6px 2px}
+#list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.paper{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:start}
+.paper:hover{border-color:var(--accent)}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:7px}
+.paper .t{font-weight:600;overflow-wrap:anywhere}
+.paper .m{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.paper .side{text-align:right;font-size:13px;color:var(--muted)}
+.paper .tags{grid-column:2/4;display:flex;gap:5px;flex-wrap:wrap}
+.tag{font-size:12px;background:var(--soft);border-radius:6px;padding:0 7px}
+.paper .memo{grid-column:2/4;font-size:13px;color:var(--muted);white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pdfbtn{font-size:12px;padding:2px 8px;margin-top:4px}
+.stars{color:#ff9f0a;letter-spacing:-1px}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted)}
+.empty .row{justify-content:center;margin-top:12px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);padding:0;width:min(720px,calc(100vw - 16px));max-height:calc(100dvh - 16px)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog .head{position:sticky;top:0;background:var(--bg);display:flex;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);z-index:1}
+dialog .head h2{font-size:16px;margin:0;margin-right:auto}
+dialog .body{padding:12px 14px 16px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px 10px}
+.grid label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);grid-column:span 6}
+.grid label.s3{grid-column:span 3}.grid label.s2{grid-column:span 2}
+@media (max-width:560px){.grid label.s3,.grid label.s2{grid-column:span 3}}
+.grid label > *{color:var(--ink);font-size:15px}
+section.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+section.box h3{font-size:14px;margin:0 0 6px}
+section.box p{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.starpick button{border:none;background:none;font-size:22px;padding:0 2px;color:var(--line)}
+.starpick button.on{color:#ff9f0a}
+#toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);background:#1c1c1e;color:#fff;padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:90vw}
+#toast.show{opacity:.95}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.hide{display:none!important}
+@media (max-width:560px){input,select,textarea{font-size:16px!important}} /* iPhone で入力時に拡大されないように */
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1><a href="../">← ツール集</a>文献管理</h1>
+    <button id="bAdd" class="primary">＋ 追加</button>
+    <button id="bFolder">📁 フォルダ</button>
+    <button id="bExport">書き出し</button>
+  </div>
+  <div class="row filters">
+    <input id="q" type="search" placeholder="検索（タイトル・著者・タグ・メモ）">
+    <select id="fStatus" aria-label="状態">
+      <option value="">すべての状態</option>
+    </select>
+    <select id="fSort" aria-label="並べ方">
+      <option value="added">追加が新しい順</option>
+      <option value="year-desc">年が新しい順</option>
+      <option value="year-asc">年が古い順</option>
+      <option value="author">著者順</option>
+      <option value="stars">重要度順</option>
+    </select>
+  </div>
+  <div class="chips" id="tagChips"></div>
+</header>
+<main>
+  <div class="info" id="info"></div>
+  <ul id="list"></ul>
+  <div class="empty hide" id="empty">
+    <div>まだ文献がありません。</div>
+    <div>「＋ 追加」から DOI・BibTeX・PDF で入れるか、「📁 フォルダ」で論文 PDF のフォルダをつなぎます。</div>
+    <div class="row"><button id="bSample">サンプルを入れてみる</button></div>
+  </div>
+</main>
+
+<!-- 文献の編集 -->
+<dialog id="dEdit">
+  <form method="dialog" id="fEdit">
+    <div class="head"><h2 id="eTitle">文献</h2><button type="button" id="eClose">閉じる</button><button id="eSave" value="save" class="primary">保存</button></div>
+    <div class="body">
+      <div class="grid">
+        <label class="s3">状態<select name="status"></select></label>
+        <label class="s3">重要度<span class="starpick" id="starPick"></span></label>
+        <label>タイトル<input name="title" required></label>
+        <label>著者（1行に1人。「姓, 名」の順）<textarea name="authors" rows="3" placeholder="Ellington, C. P.&#10;山田 太郎"></textarea></label>
+        <label class="s2">年<input name="year" inputmode="numeric"></label>
+        <label class="s2">種類<select name="type">
+          <option value="article">論文誌</option><option value="inproceedings">学会・会議</option>
+          <option value="book">本</option><option value="thesis">学位論文</option><option value="misc">その他（Web など）</option></select></label>
+        <label class="s2">引用キー<input name="key" class="mono" placeholder="自動"></label>
+        <label>掲載誌・会議名・出版社<input name="journal"></label>
+        <label class="s2">巻 Vol.<input name="volume"></label>
+        <label class="s2">号 No.<input name="number"></label>
+        <label class="s2">ページ<input name="pages" placeholder="626-630"></label>
+        <label class="s3">DOI<span class="row" style="flex-wrap:nowrap"><input name="doi" class="mono" placeholder="10.xxxx/..."><button type="button" id="eDoi" title="DOI だけを Crossref に送って書誌情報を取得">取得</button></span></label>
+        <label class="s3">URL<input name="url" type="url"></label>
+        <label>タグ（スペース・カンマ区切り）<input name="tags" list="tagList" placeholder="FWR 空力 実験"></label>
+        <label>要点メモ（何をした論文か・結果）<textarea name="summary" rows="3"></textarea></label>
+        <label>卒論での使いどころ（どの章で何に使うか）<textarea name="usage" rows="2"></textarea></label>
+        <label>その他メモ<textarea name="note" rows="2"></textarea></label>
+      </div>
+      <section class="box" style="margin-top:12px">
+        <h3>PDF</h3>
+        <p id="ePdfInfo">なし</p>
+        <div class="row">
+          <button type="button" id="ePdfOpen">開く</button>
+          <button type="button" id="ePdfPick">PDF を付ける（アプリ内に保存）</button>
+          <button type="button" id="ePdfDel" class="danger">外す</button>
+          <input type="file" id="ePdfFile" accept="application/pdf,.pdf" class="hide">
+        </div>
+      </section>
+      <div class="row">
+        <button type="button" id="eCopyBib">BibTeX をコピー</button>
+        <button type="button" id="eCopyRef">参考文献の形でコピー</button>
+        <span style="margin-left:auto"></span>
+        <button type="button" id="eDel" class="danger">この文献を削除</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+<datalist id="tagList"></datalist>
+
+<!-- 追加 -->
+<dialog id="dAdd">
+  <div class="head"><h2>文献を追加</h2><button data-close>閉じる</button></div>
+  <div class="body">
+    <section class="box">
+      <h3>DOI で追加</h3>
+      <p>1行に1つ。DOI だけを Crossref（論文の書誌データベース）に送って、タイトル・著者などを取ってきます。</p>
+      <textarea id="aDoi" rows="3" class="mono" placeholder="10.1038/384626a0&#10;https://doi.org/10.1126/science.284.5422.1954"></textarea>
+      <div class="row" style="margin-top:8px"><button id="aDoiGo" class="primary">取得して追加</button></div>
+    </section>
+    <section class="box">
+      <h3>BibTeX を貼り付け</h3>
+      <p>Google Scholar の「引用 → BibTeX」や、出版社サイトの「Export citation」をそのまま貼れます。.bib ファイルも可。</p>
+      <textarea id="aBib" rows="4" class="mono" placeholder="@article{...}"></textarea>
+      <div class="row" style="margin-top:8px"><button id="aBibGo" class="primary">読み込む</button><button id="aBibFileBtn">.bib ファイルを選ぶ</button><input type="file" id="aBibFile" accept=".bib,.txt,text/plain" class="hide"></div>
+    </section>
+    <section class="box">
+      <h3>PDF から追加</h3>
+      <p>選んだ PDF はこの端末のアプリ内に保存します（iPhone でも可）。PDF の中に DOI が見つかれば一緒に記録します。</p>
+      <button id="aPdfBtn">PDF を選ぶ（複数可）</button><input type="file" id="aPdf" accept="application/pdf,.pdf" multiple class="hide">
+    </section>
+    <section class="box">
+      <h3>手で入力</h3>
+      <button id="aManual">空の文献を作る</button>
+    </section>
+  </div>
+</dialog>
+
+<!-- フォルダ -->
+<dialog id="dFolder">
+  <div class="head"><h2>論文フォルダ</h2><button data-close>閉じる</button></div>
+  <div class="body">
+    <section class="box" id="fsBox">
+      <h3>フォルダをつなぐ（Mac の Chrome / Edge）</h3>
+      <p>PDF はフォルダに置いたまま、アプリからは場所だけ覚えます。サブフォルダ名はタグになります。フォルダを iCloud Drive や Google ドライブに置けば、ファイルの管理はいつも通りでOK。</p>
+      <p id="fsName">つながっていません</p>
+      <div class="row">
+        <button id="fsPick" class="primary">フォルダを選ぶ</button>
+        <button id="fsScan">新しい PDF を探す</button>
+      </div>
+      <p style="margin-top:10px">文献の一覧（メモ・タグなど）をフォルダの中に <span class="mono">bunken-library.json</span> として保存できます。別の端末や別のブラウザで同じフォルダを開けば読み込めます。</p>
+      <div class="row">
+        <button id="fsSave">一覧をフォルダに保存</button>
+        <button id="fsLoad">フォルダの一覧を読み込む</button>
+        <label class="row" style="display:inline-flex;font-size:13px;color:var(--muted)"><input type="checkbox" id="fsAuto" style="width:auto"> 変更のたびに自動で保存</label>
+      </div>
+    </section>
+    <section class="box" id="fsNo">
+      <h3>このブラウザではフォルダをつなげません</h3>
+      <p>Safari・iPhone はフォルダの場所を覚えておく機能がありません。代わりにフォルダの中の PDF をまとめてアプリ内に取り込めます（容量に注意）。Mac では Chrome で開くのがおすすめです。</p>
+      <button id="fsDirBtn">フォルダの PDF を取り込む</button><input type="file" id="fsDir" webkitdirectory multiple class="hide">
+    </section>
+  </div>
+</dialog>
+
+<!-- 書き出し -->
+<dialog id="dExport">
+  <div class="head"><h2>書き出し・バックアップ</h2><button data-close>閉じる</button></div>
+  <div class="body">
+    <section class="box">
+      <h3>対象</h3>
+      <select id="xScope">
+        <option value="shown">いま一覧に出ている文献</option>
+        <option value="cite">状態が「引用する」の文献</option>
+        <option value="all">すべての文献</option>
+      </select>
+    </section>
+    <section class="box">
+      <h3>卒論（LaTeX）用</h3>
+      <p>BibTeX ファイル（.bib）を本文と同じフォルダに置き、<span class="mono">\cite{引用キー}</span> で引用します。</p>
+      <div class="row"><button id="xBibSave" class="primary">.bib を保存</button><button id="xBibCopy">BibTeX をコピー</button></div>
+    </section>
+    <section class="box">
+      <h3>参考文献リスト（Word など用）</h3>
+      <p>機械学会論文集の形に近い書き方で、番号付きのテキストにします。提出前に研究室の指定と見比べてください。</p>
+      <button id="xRefCopy">参考文献リストをコピー</button>
+    </section>
+    <section class="box">
+      <h3>バックアップ</h3>
+      <p>メモ・タグ・状態を含む全データ（PDF 本体は含まない）。別の端末へ移すときにも使います。</p>
+      <div class="row"><button id="xJsonSave">バックアップを保存</button><button id="xJsonLoadBtn">バックアップから読み込む</button><input type="file" id="xJsonLoad" accept=".json,application/json" class="hide"></div>
+    </section>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const STATUS = [['unread','未読'],['reading','読んでる'],['read','読んだ'],['cite','引用する']];
+const STATUS_LABEL = Object.fromEntries(STATUS);
+const TYPE_BIB = {article:'article', inproceedings:'inproceedings', book:'book', thesis:'mastersthesis', misc:'misc'};
+const LIB_FILE = 'bunken-library.json';
+let papers = [];
+let dirHandle = null;
+let tagFilter = '';
+let editing = null;     // 編集中の文献（コピー）
+let db = null;
+
+/* ---------- 小物 ---------- */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function toast(msg, ms = 2200){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms); }
+async function copyText(s, label = 'コピーしました'){
+  try { await navigator.clipboard.writeText(s); toast(label); }
+  catch { const ta = document.createElement('textarea'); ta.value = s; document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast(label); }
+}
+function download(name, text, type = 'text/plain'){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const splitTags = s => [...new Set(String(s || '').split(/[\s,、，]+/).map(x => x.trim()).filter(Boolean))];
+function normDoi(s){
+  s = String(s || '').trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '').replace(/[.,;]+$/, '');
+  return /^10\.\d{4,9}\//.test(s) ? s : '';
+}
+const isJa = s => /[぀-ヿ一-鿿]/.test(s);
+// 「姓, 名」なら姓。カンマなしは、日本語なら最初・英語なら最後の語を姓とみなす
+const familyOf = a => (a.includes(',') ? a.split(',')[0] : isJa(a) ? a.split(/\s+/)[0] : a.split(/\s+/).slice(-1)[0]).trim();
+
+/* ---------- 保存（IndexedDB） ---------- */
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('bunken', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('files'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+function tx(store, mode, fn){
+  if (!db) return Promise.resolve(undefined);
+  return new Promise((res, rej) => {
+    const t = db.transaction(store, mode); let out; const req = fn(t.objectStore(store));
+    if (req) req.onsuccess = () => out = req.result;
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error);
+  });
+}
+const kvGet = k => tx('kv', 'readonly', s => s.get(k));
+const kvSet = (k, v) => tx('kv', 'readwrite', s => s.put(v, k));
+const fileGet = id => tx('files', 'readonly', s => s.get(id));
+const fileSet = (id, blob) => tx('files', 'readwrite', s => s.put(blob, id));
+const fileDel = id => tx('files', 'readwrite', s => s.delete(id));
+
+let saveTimer = null;
+function persist(){
+  kvSet('papers', papers).catch(e => toast('保存に失敗: ' + e.message));
+  if ($('#fsAuto').checked && dirHandle){ clearTimeout(saveTimer); saveTimer = setTimeout(() => saveToFolder(true), 1500); }
+}
+
+/* ---------- 文献の基本操作 ---------- */
+function blank(){
+  return {id: uid(), type:'article', title:'', authors:[], year:'', journal:'', volume:'', number:'', pages:'', doi:'', url:'',
+    tags:[], status:'unread', stars:0, summary:'', usage:'', note:'', key:'', file:null, added: Date.now(), updated: Date.now()};
+}
+function makeKey(p, others){
+  let base = (p.authors[0] ? familyOf(p.authors[0]) : '').normalize('NFKD').replace(/[^A-Za-z]/g, '');
+  base = (base || 'ref') + (p.year || '');
+  const used = new Set(others.filter(o => o.id !== p.id).map(o => o.key));
+  if (!used.has(base)) return base;
+  for (const c of 'abcdefghijklmnopqrstuvwxyz') if (!used.has(base + c)) return base + c;
+  return base + uid().slice(-3);
+}
+function findDup(p){
+  const d = normDoi(p.doi).toLowerCase();
+  const t = (p.title || '').toLowerCase().replace(/\W+/g, '');
+  return papers.find(o => (d && normDoi(o.doi).toLowerCase() === d) || (t.length > 10 && o.title.toLowerCase().replace(/\W+/g, '') === t));
+}
+/** 追加（重複は空欄だけ埋める）。戻り値: 'added' | 'merged' */
+function addPaper(p){
+  const dup = findDup(p);
+  if (dup){
+    for (const k of ['title','year','journal','volume','number','pages','doi','url','type']) if (!dup[k] && p[k]) dup[k] = p[k];
+    if (!dup.authors.length && p.authors.length) dup.authors = p.authors;
+    dup.tags = [...new Set([...dup.tags, ...p.tags])];
+    if (!dup.file && p.file) dup.file = p.file;
+    dup.updated = Date.now();
+    return 'merged';
+  }
+  if (!p.key) p.key = makeKey(p, papers);
+  papers.push(p);
+  return 'added';
+}
+
+/* ---------- 一覧の表示 ---------- */
+function shownPapers(){
+  const q = $('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const st = $('#fStatus').value;
+  let r = papers.filter(p => {
+    if (st && p.status !== st) return false;
+    if (tagFilter && !p.tags.includes(tagFilter)) return false;
+    if (!q.length) return true;
+    const hay = [p.title, p.authors.join(' '), p.journal, p.year, p.tags.join(' '), p.summary, p.usage, p.note, p.key, p.doi, p.file?.name].join(' ').toLowerCase();
+    return q.every(w => hay.includes(w));
+  });
+  const s = $('#fSort').value;
+  const y = p => parseInt(p.year) || 0;
+  const cmp = {
+    'added': (a, b) => b.added - a.added,
+    'year-desc': (a, b) => y(b) - y(a) || b.added - a.added,
+    'year-asc': (a, b) => y(a) - y(b) || b.added - a.added,
+    'author': (a, b) => (a.authors[0] || '￿').localeCompare(b.authors[0] || '￿') || y(a) - y(b),
+    'stars': (a, b) => b.stars - a.stars || b.added - a.added,
+  }[s];
+  return r.sort(cmp);
+}
+function shortAuthors(a){
+  if (!a.length) return '著者なし';
+  const f = familyOf(a[0]);
+  return a.length === 1 ? f : a.length === 2 ? `${f}, ${familyOf(a[1])}` : `${f} ほか`;
+}
+function render(){
+  const list = shownPapers();
+  $('#list').innerHTML = list.map(p => `
+    <li class="paper" data-id="${p.id}">
+      <span class="dot" style="background:var(--s-${p.status})" title="${STATUS_LABEL[p.status]}"></span>
+      <div><div class="t">${esc(p.title || '(タイトルなし)')}</div>
+        <div class="m">${esc(shortAuthors(p.authors))}${p.year ? ' (' + esc(p.year) + ')' : ''}${p.journal ? ' — ' + esc(p.journal) : ''}</div></div>
+      <div class="side">${p.stars ? '<span class="stars">' + '★'.repeat(p.stars) + '</span><br>' : ''}${STATUS_LABEL[p.status]}
+        ${p.file ? `<br><button class="pdfbtn" data-pdf="${p.id}">PDF</button>` : ''}</div>
+      ${p.tags.length ? `<div class="tags">${p.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+      ${p.summary ? `<div class="memo">${esc(p.summary)}</div>` : ''}
+    </li>`).join('');
+  $('#empty').classList.toggle('hide', papers.length > 0);
+  $('#info').textContent = papers.length ? `${list.length} / ${papers.length} 件` + (dirHandle ? `　📁 ${dirHandle.name}` : '') : '';
+  // タグ
+  const counts = {};
+  papers.forEach(p => p.tags.forEach(t => counts[t] = (counts[t] || 0) + 1));
+  const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  if (tagFilter && !counts[tagFilter]) tagFilter = '';
+  $('#tagChips').innerHTML = tags.map(t => `<span class="chip${t === tagFilter ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)} ${counts[t]}</span>`).join('');
+  $('#tagList').innerHTML = tags.map(t => `<option value="${esc(t)}">`).join('');
+}
+
+/* ---------- 編集画面 ---------- */
+const F = () => $('#fEdit').elements;
+function openEdit(p, isNew = false){
+  editing = structuredClone(p); editing._new = isNew;
+  fillForm();
+  $('#dEdit').showModal();
+  if (isNew) F().title.focus();
+}
+function fillForm(){
+  const f = F(), isNew = editing._new;
+  for (const k of ['title','year','type','key','journal','volume','number','pages','doi','url','summary','usage','note','status']) f[k].value = editing[k] ?? '';
+  f.authors.value = editing.authors.join('\n');
+  f.tags.value = editing.tags.join(' ');
+  $('#eTitle').textContent = isNew ? '文献を追加' : '文献の編集';
+  $('#eDel').classList.toggle('hide', isNew);
+  drawStars(); drawPdfInfo();
+}
+$('#eClose').onclick = () => $('#dEdit').close();
+function readForm(){
+  const f = F(), p = editing;
+  for (const k of ['title','year','type','key','journal','volume','number','pages','url','summary','usage','note','status']) p[k] = f[k].value.trim();
+  p.doi = normDoi(f.doi.value) || f.doi.value.trim();
+  p.authors = f.authors.value.split('\n').map(s => s.trim()).filter(Boolean);
+  p.tags = splitTags(f.tags.value);
+  return p;
+}
+function drawStars(){
+  $('#starPick').innerHTML = [1, 2, 3].map(n => `<button type="button" data-n="${n}" class="${n <= editing.stars ? 'on' : ''}">★</button>`).join('');
+}
+function drawPdfInfo(){
+  const f = editing.file;
+  $('#ePdfInfo').textContent = !f ? 'なし' : f.kind === 'dir' ? `フォルダ内: ${f.path}` : `アプリ内に保存: ${f.name}`;
+  $('#ePdfOpen').disabled = !f; $('#ePdfDel').disabled = !f;
+}
+$('#starPick').addEventListener('click', e => { const n = +e.target.dataset.n; if (!n) return; editing.stars = editing.stars === n ? 0 : n; drawStars(); });
+$('#fEdit').addEventListener('submit', e => {
+  if (e.submitter?.value !== 'save') return;
+  const p = readForm(); const isNew = p._new; delete p._new;
+  if (!p.key) p.key = makeKey(p, papers);
+  else if (papers.some(o => o.id !== p.id && o.key === p.key)) p.key = makeKey(p, papers);
+  p.updated = Date.now();
+  const i = papers.findIndex(o => o.id === p.id);
+  if (i >= 0) papers[i] = p; else papers.push(p);
+  persist(); render(); toast(isNew ? '追加しました' : '保存しました');
+});
+$('#dEdit').addEventListener('close', () => {
+  // 「閉じる」で閉じた新規文献に付けた PDF は捨てる
+  if (editing?._new && editing.file?.kind === 'app' && !papers.some(o => o.id === editing.id)) fileDel(editing.id);
+});
+$('#eDel').onclick = async () => {
+  if (!confirm(`「${editing.title || '(タイトルなし)'}」を削除しますか？\n（フォルダ内の PDF ファイルは消えません）`)) return;
+  papers = papers.filter(o => o.id !== editing.id);
+  if (editing.file?.kind === 'app') await fileDel(editing.id);
+  editing = null; $('#dEdit').close(); persist(); render(); toast('削除しました');
+};
+$('#eDoi').onclick = async () => {
+  const doi = normDoi(F().doi.value);
+  if (!doi) return toast('DOI の形が正しくありません（10.xxxx/... の形）');
+  try {
+    const m = await crossref(doi); readForm();
+    for (const k of ['title','year','journal','volume','number','pages','url','type']) if (m[k]) editing[k] = m[k];
+    if (m.authors.length) editing.authors = m.authors;
+    editing.doi = m.doi;
+    fillForm(); toast('書誌情報を取得しました');
+  } catch (e) { toast('取得できませんでした: ' + e.message, 3500); }
+};
+$('#ePdfPick').onclick = () => $('#ePdfFile').click();
+$('#ePdfFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  await fileSet(editing.id, file);
+  editing.file = {kind: 'app', name: file.name};
+  if (!F().doi.value){ const d = await doiFromPdf(file); if (d) F().doi.value = d; }
+  drawPdfInfo(); toast('PDF を付けました（保存を押すと確定）');
+};
+$('#ePdfDel').onclick = async () => {
+  if (editing.file?.kind === 'app') await fileDel(editing.id);
+  editing.file = null; drawPdfInfo();
+};
+$('#ePdfOpen').onclick = () => openPdf(editing);
+$('#eCopyBib').onclick = () => copyText(toBib(readForm()), 'BibTeX をコピーしました');
+$('#eCopyRef').onclick = () => copyText(toRef(readForm()), '参考文献の形でコピーしました');
+
+/* ---------- PDF ---------- */
+async function getDirFile(path){
+  if (!dirHandle) throw new Error('フォルダがつながっていません（📁 フォルダ から選んでください）');
+  if (await dirHandle.queryPermission({mode: 'read'}) !== 'granted' && await dirHandle.requestPermission({mode: 'read'}) !== 'granted')
+    throw new Error('フォルダを読む許可がありません');
+  const parts = path.split('/'); let h = dirHandle;
+  for (const d of parts.slice(0, -1)) h = await h.getDirectoryHandle(d);
+  return (await h.getFileHandle(parts.at(-1))).getFile();
+}
+async function openPdf(p){
+  // 非同期の後だとポップアップが止められるので、先に窓を開けておく
+  const w = window.open('', '_blank');
+  try {
+    const blob = p.file.kind === 'dir' ? await getDirFile(p.file.path) : await fileGet(p.id);
+    if (!blob) throw new Error('PDF が見つかりません');
+    const url = URL.createObjectURL(new Blob([blob], {type: 'application/pdf'}));
+    if (w) w.location = url; else location.href = url;
+  } catch (e) { w?.close(); toast(e.name === 'NotFoundError' ? 'PDF が見つかりません（移動・名前変更された？）' : e.message, 3500); }
+}
+/** PDF の先頭・末尾から DOI らしき文字列を探す（圧縮されていないメタデータに入っていることが多い） */
+async function doiFromPdf(file){
+  try {
+    const head = await file.slice(0, 2e6).arrayBuffer();
+    const tail = file.size > 2e6 ? await file.slice(-5e5).arrayBuffer() : new ArrayBuffer(0);
+    const txt = new TextDecoder('latin1').decode(head) + new TextDecoder('latin1').decode(tail);
+    const m = txt.match(/(?:doi[:\s/=.]*|doi\.org\/)(10\.\d{4,9}\/[^\s"'<>()\[\]{}\\]+)/i) || txt.match(/\b(10\.\d{4,9}\/[A-Za-z0-9._;:\/-]+)/);
+    return m ? normDoi(m[1].replace(/\)?>>.*$/, '')) : '';
+  } catch { return ''; }
+}
+const titleFromName = n => n.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim();
+
+/* ---------- Crossref（DOI だけを送る） ---------- */
+async function crossref(doi){
+  const r = await fetch('https://api.crossref.org/works/' + encodeURIComponent(doi));
+  if (r.status === 404) throw new Error('この DOI は見つかりません');
+  if (!r.ok) throw new Error('通信エラー ' + r.status);
+  const m = (await r.json()).message;
+  const strip = s => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const typeMap = {'journal-article':'article','proceedings-article':'inproceedings','book':'book','book-chapter':'book','monograph':'book','dissertation':'thesis'};
+  return {
+    type: typeMap[m.type] || 'misc',
+    title: strip((m.title || [''])[0]),
+    authors: (m.author || []).map(a => a.family ? a.family + (a.given ? ', ' + a.given : '') : a.name).filter(Boolean),
+    year: String(m.issued?.['date-parts']?.[0]?.[0] || m.published?.['date-parts']?.[0]?.[0] || ''),
+    journal: strip((m['container-title'] || [m.publisher || ''])[0]),
+    volume: m.volume || '', number: m.issue || '', pages: m.page || '', doi: m.DOI || doi, url: m.URL || '',
+  };
+}
+
+/* ---------- BibTeX ---------- */
+function deTex(s){
+  const acc = {'"':'̈',"'":'́','`':'̀','^':'̂','~':'̃','c':'̧','v':'̌','=':'̄','.':'̇','u':'̆','H':'̋'};
+  return s.replace(/\{?\\([\"'`^~cv=.uH])\s*\{?([A-Za-z])\}?\}?/g, (_, a, ch) => (ch + acc[a]).normalize('NFC'))
+    .replace(/\\(ss|o|O|ae|AE|aa|AA|l|L)\b\s*/g, (_, x) => ({ss:'ß',o:'ø',O:'Ø',ae:'æ',AE:'Æ',aa:'å',AA:'Å',l:'ł',L:'Ł'}[x]))
+    .replace(/\\([&%$#_])/g, '$1').replace(/--/g, '-').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+}
+function parseBib(text){
+  const out = []; let i = 0;
+  while ((i = text.indexOf('@', i)) >= 0){
+    const m = /^@\s*(\w+)\s*[{(]/.exec(text.slice(i));
+    if (!m){ i++; continue; }
+    const type = m[1].toLowerCase(); let j = i + m[0].length;
+    if (['comment','string','preamble'].includes(type)){ i = j; continue; }
+    // 本体の終わりを探す（括弧の深さで）
+    let depth = 1, k = j, inQ = false;
+    for (; k < text.length && depth > 0; k++){
+      const c = text[k];
+      if (c === '\\'){ k++; continue; }
+      if (c === '"' && depth === 1) inQ = !inQ;
+      else if (!inQ && (c === '{' || c === '(')) depth++;
+      else if (!inQ && (c === '}' || c === ')')) depth--;
+    }
+    const body = text.slice(j, k - 1); i = k;
+    const comma = body.indexOf(','); if (comma < 0) continue;
+    const e = {_type: type, _key: body.slice(0, comma).trim()};
+    let s = body.slice(comma + 1), p = 0;
+    while (p < s.length){
+      const fm = /^[\s,]*([\w-]+)\s*=\s*/.exec(s.slice(p)); if (!fm) break;
+      const name = fm[1].toLowerCase(); p += fm[0].length;
+      let val = '';
+      if (s[p] === '{'){ let d = 0, q = p; for (; q < s.length; q++){ if (s[q] === '\\'){ q++; continue; } if (s[q] === '{') d++; else if (s[q] === '}' && --d === 0) break; } val = s.slice(p + 1, q); p = q + 1; }
+      else if (s[p] === '"'){ let q = p + 1, d = 0; for (; q < s.length; q++){ if (s[q] === '\\'){ q++; continue; } if (s[q] === '{') d++; else if (s[q] === '}') d--; else if (s[q] === '"' && d === 0) break; } val = s.slice(p + 1, q); p = q + 1; }
+      else { const vm = /^[^,}]*/.exec(s.slice(p)); val = vm[0]; p += vm[0].length; }
+      e[name] = val.trim();
+    }
+    out.push(e);
+  }
+  return out.map(e => {
+    const p = blank();
+    p.type = {article:'article', inproceedings:'inproceedings', conference:'inproceedings', book:'book', inbook:'book', incollection:'book',
+      mastersthesis:'thesis', phdthesis:'thesis'}[e._type] || 'misc';
+    p.key = e._key.replace(/\s/g, '');
+    p.title = deTex(e.title || '');
+    p.authors = e.author ? e.author.split(/\s+and\s+/i).map(a => deTex(a)).filter(Boolean) : [];
+    p.year = deTex(e.year || (e.date || '').slice(0, 4));
+    p.journal = deTex(e.journal || e.booktitle || e.journaltitle || e.publisher || e.school || '');
+    p.volume = deTex(e.volume || ''); p.number = deTex(e.number || e.issue || ''); p.pages = deTex(e.pages || '');
+    p.doi = normDoi(deTex(e.doi || '')); p.url = deTex(e.url || '');
+    p.tags = e.keywords ? splitTags(deTex(e.keywords).replace(/;/g, ',')) : [];
+    p.note = deTex(e.note || '');
+    return p;
+  });
+}
+function bibEsc(s){ return String(s).replace(/([&%#_$])/g, '\\$1'); }
+function toBib(p){
+  const t = TYPE_BIB[p.type] || 'misc';
+  const venue = {article:'journal', inproceedings:'booktitle', book:'publisher', thesis:'school', misc:'howpublished'}[p.type] || 'journal';
+  const f = [
+    ['author', p.authors.map(bibEsc).join(' and ')],
+    ['title', p.title ? '{' + bibEsc(p.title) + '}' : ''],
+    [venue, bibEsc(p.journal)], ['year', p.year], ['volume', p.volume], ['number', p.number],
+    ['pages', String(p.pages || '').replace(/\s*[-–—]+\s*/g, '--')], ['doi', p.doi], ['url', p.doi ? '' : p.url],
+  ].filter(([, v]) => v);
+  return `@${t}{${p.key || makeKey(p, papers)},\n${f.map(([k, v]) => `  ${k} = {${v}}`).join(',\n')}\n}`;
+}
+/** 機械学会論文集に近い形: 著者, 題目, 誌名, Vol.x, No.y (年), pp.a-b. */
+function toRef(p){
+  const a = p.authors.map(s => s.replace(/\s+/g, ' '));
+  const ja = a.some(isJa) || isJa(p.title);
+  const sep = ja ? '，' : ', ';
+  let au = a.length <= 1 ? (a[0] || '') : ja ? a.join('，') : a.slice(0, -1).join(', ') + ' and ' + a.at(-1);
+  const pages = String(p.pages || '').replace(/\s*[-–—]+\s*/g, '-');
+  const parts = [au, p.title, p.journal].filter(Boolean);
+  let s = parts.join(sep);
+  if (p.volume) s += `${sep}Vol.${p.volume}`;
+  if (p.number) s += `${sep}No.${p.number}`;
+  if (p.year) s += ` (${p.year})`;
+  if (pages) s += `${sep}${pages.includes('-') ? 'pp.' : 'p.'}${pages}`;
+  if (p.type === 'misc' && p.url) s += `${sep}${p.url}（参照日 ${today()}）`;
+  return s + (ja ? '．' : '.');
+}
+
+/* ---------- 追加ダイアログ ---------- */
+$('#bAdd').onclick = () => $('#dAdd').showModal();
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+$('#aManual').onclick = () => { $('#dAdd').close(); openEdit(blank(), true); };
+$('#aDoiGo').onclick = async () => {
+  const dois = [...new Set($('#aDoi').value.split(/[\s,]+/).map(normDoi).filter(Boolean))];
+  if (!dois.length) return toast('DOI が見つかりません（10.xxxx/... の形）');
+  const btn = $('#aDoiGo'); btn.disabled = true;
+  let ok = 0, merged = 0; const fail = [];
+  for (const [n, d] of dois.entries()){
+    btn.textContent = `取得中 ${n + 1}/${dois.length}…`;
+    try { const m = await crossref(d); const r = addPaper(Object.assign(blank(), m)); r === 'added' ? ok++ : merged++; }
+    catch (e) { fail.push(`${d}（${e.message}）`); }
+  }
+  btn.disabled = false; btn.textContent = '取得して追加';
+  persist(); render();
+  if (fail.length) alert(`取得できなかった DOI:\n${fail.join('\n')}`);
+  toast(`${ok} 件追加` + (merged ? `、${merged} 件は登録済み` : ''));
+  if (!fail.length){ $('#aDoi').value = ''; $('#dAdd').close(); }
+};
+function importBib(text){
+  const list = parseBib(text);
+  if (!list.length) return toast('BibTeX の項目が見つかりません');
+  let ok = 0, merged = 0;
+  for (const p of list){
+    if (p.key && papers.some(o => o.key === p.key) && !findDup(p)) p.key = '';
+    addPaper(p) === 'added' ? ok++ : merged++;
+  }
+  persist(); render(); toast(`${ok} 件追加` + (merged ? `、${merged} 件は登録済み` : ''));
+  $('#aBib').value = ''; $('#dAdd').close();
+}
+$('#aBibGo').onclick = () => importBib($('#aBib').value);
+$('#aBibFileBtn').onclick = () => $('#aBibFile').click();
+$('#aBibFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) importBib(await f.text()); };
+$('#aPdfBtn').onclick = () => $('#aPdf').click();
+async function importPdfFiles(files, tagFromPath = false){
+  files = [...files].filter(f => /\.pdf$/i.test(f.name));
+  if (!files.length) return toast('PDF がありません');
+  let ok = 0;
+  for (const f of files){
+    if (papers.some(o => o.file?.kind === 'app' && o.file.name === f.name && o.file.size === f.size)) continue;
+    const p = blank(); p.title = titleFromName(f.name); p.doi = await doiFromPdf(f);
+    p.file = {kind: 'app', name: f.name, size: f.size};
+    const sub = tagFromPath && f.webkitRelativePath ? f.webkitRelativePath.split('/').slice(1, -1) : [];
+    p.tags = sub;
+    await fileSet(p.id, f);
+    addPaper(p); ok++;
+  }
+  persist(); render(); toast(`${ok} 件の PDF を取り込みました`);
+  await offerDoiFetch();
+}
+$('#aPdf').onchange = async e => { const fs = [...e.target.files]; e.target.value = ''; $('#dAdd').close(); await importPdfFiles(fs); };
+
+/** タイトルがファイル名のままで DOI がある文献の書誌情報をまとめて取る */
+async function offerDoiFetch(){
+  const todo = papers.filter(p => p.doi && !p.authors.length);
+  if (!todo.length) return;
+  if (!confirm(`PDF から DOI が見つかった ${todo.length} 件の書誌情報（タイトル・著者など）を Crossref から取得しますか？\n（送るのは DOI だけです）`)) return;
+  let ok = 0;
+  for (const p of todo){
+    try { const m = await crossref(p.doi); for (const k of ['type','title','year','journal','volume','number','pages','url']) if (m[k]) p[k] = m[k]; p.authors = m.authors; p.key = makeKey(p, papers); ok++; } catch {}
+  }
+  persist(); render(); toast(`${ok} / ${todo.length} 件の書誌情報を取得しました`);
+}
+
+/* ---------- フォルダ ---------- */
+const hasFS = 'showDirectoryPicker' in window;
+$('#fsBox').classList.toggle('hide', !hasFS);
+$('#fsNo').classList.toggle('hide', hasFS);
+function drawFolder(){
+  $('#fsName').textContent = dirHandle ? `つないでいるフォルダ: ${dirHandle.name}` : 'つながっていません';
+  for (const id of ['#fsScan', '#fsSave', '#fsLoad']) $(id).disabled = !dirHandle;
+}
+$('#bFolder').onclick = () => { drawFolder(); $('#dFolder').showModal(); };
+$('#fsPick').onclick = async () => {
+  try { dirHandle = await window.showDirectoryPicker({id: 'bunken', mode: 'readwrite'}); }
+  catch (e) { if (e.name !== 'AbortError') toast(e.message); return; }
+  await kvSet('dir', dirHandle); drawFolder(); render();
+  // フォルダに一覧があって、アプリが空なら読み込む
+  let hasLib = false; try { await dirHandle.getFileHandle(LIB_FILE); hasLib = true; } catch {}
+  if (hasLib && (!papers.length || confirm(`フォルダに ${LIB_FILE} があります。読み込んで今の一覧とまとめますか？`))) await loadFromFolder();
+  await scanFolder();
+};
+async function ensurePerm(mode){
+  if (await dirHandle.queryPermission({mode}) === 'granted') return true;
+  return await dirHandle.requestPermission({mode}) === 'granted';
+}
+async function* walk(dir, prefix = '', depth = 0){
+  for await (const [name, h] of dir.entries()){
+    if (name.startsWith('.')) continue;
+    if (h.kind === 'directory'){ if (depth < 4) yield* walk(h, prefix + name + '/', depth + 1); }
+    else if (/\.pdf$/i.test(name)) yield {path: prefix + name, handle: h};
+  }
+}
+async function scanFolder(){
+  if (!dirHandle || !await ensurePerm('read')) return toast('フォルダを読む許可がありません');
+  const known = new Set(papers.filter(p => p.file?.kind === 'dir').map(p => p.file.path));
+  const btn = $('#fsScan'); btn.disabled = true; btn.textContent = '探しています…';
+  let ok = 0, found = 0;
+  try {
+    for await (const {path, handle} of walk(dirHandle)){
+      found++;
+      if (known.has(path)) continue;
+      const file = await handle.getFile();
+      const p = blank(); p.title = titleFromName(file.name); p.doi = await doiFromPdf(file);
+      p.file = {kind: 'dir', path, name: file.name};
+      p.tags = path.split('/').slice(0, -1);
+      if (addPaper(p) === 'added') ok++;
+    }
+  } finally { btn.disabled = false; btn.textContent = '新しい PDF を探す'; }
+  $('#dFolder').close();
+  persist(); render(); toast(`PDF ${found} 個のうち、新しく ${ok} 件を追加しました`);
+  await offerDoiFetch();
+}
+$('#fsScan').onclick = scanFolder;
+async function saveToFolder(silent = false){
+  try {
+    if (!await ensurePerm('readwrite')) throw new Error('フォルダに書く許可がありません');
+    const w = await (await dirHandle.getFileHandle(LIB_FILE, {create: true})).createWritable();
+    await w.write(JSON.stringify(backupData(papers), null, 1)); await w.close();
+    if (!silent) toast(`${LIB_FILE} に保存しました`);
+  } catch (e) { toast('フォルダに保存できません: ' + e.message, 3500); }
+}
+async function loadFromFolder(){
+  try {
+    if (!await ensurePerm('read')) throw new Error('許可がありません');
+    const text = await (await (await dirHandle.getFileHandle(LIB_FILE)).getFile()).text();
+    mergeBackup(JSON.parse(text));
+  } catch (e) { toast('読み込めません: ' + e.message, 3500); }
+}
+$('#fsSave').onclick = () => saveToFolder();
+$('#fsLoad').onclick = loadFromFolder;
+$('#fsAuto').onchange = () => { kvSet('autoSave', $('#fsAuto').checked); if ($('#fsAuto').checked && dirHandle) saveToFolder(); };
+$('#fsDirBtn').onclick = () => $('#fsDir').click();
+$('#fsDir').onchange = async e => { const fs = [...e.target.files]; e.target.value = ''; $('#dFolder').close(); await importPdfFiles(fs, true); };
+
+/* ---------- 書き出し・バックアップ ---------- */
+function scoped(){
+  const s = $('#xScope').value;
+  return s === 'all' ? papers : s === 'cite' ? papers.filter(p => p.status === 'cite') : shownPapers();
+}
+function needSome(list){ if (!list.length) toast('対象の文献がありません'); return list.length > 0; }
+$('#bExport').onclick = () => $('#dExport').showModal();
+$('#xBibSave').onclick = () => { const l = scoped(); if (needSome(l)) download('references.bib', l.map(toBib).join('\n\n') + '\n'); };
+$('#xBibCopy').onclick = () => { const l = scoped(); if (needSome(l)) copyText(l.map(toBib).join('\n\n'), `${l.length} 件の BibTeX をコピーしました`); };
+$('#xRefCopy').onclick = () => { const l = scoped(); if (needSome(l)) copyText(l.map((p, i) => `(${i + 1}) ${toRef(p)}`).join('\n'), `${l.length} 件をコピーしました`); };
+const backupData = list => ({app: 'bunken', version: 1, saved: new Date().toISOString(), papers: list});
+$('#xJsonSave').onclick = () => download(`bunken-backup-${today()}.json`, JSON.stringify(backupData(papers), null, 1), 'application/json');
+$('#xJsonLoadBtn').onclick = () => $('#xJsonLoad').click();
+$('#xJsonLoad').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { mergeBackup(JSON.parse(await f.text())); } catch (err) { toast('読み込めません: ' + err.message, 3500); }
+};
+function mergeBackup(data){
+  if (!data || data.app !== 'bunken' || !Array.isArray(data.papers)) throw new Error('文献管理のデータではありません');
+  let add = 0, upd = 0;
+  for (const raw of data.papers){
+    const p = Object.assign(blank(), raw);
+    const i = papers.findIndex(o => o.id === p.id);
+    if (i < 0){ papers.push(p); add++; }
+    else if ((p.updated || 0) > (papers[i].updated || 0)){ papers[i] = p; upd++; }
+  }
+  persist(); render(); toast(`${add} 件追加、${upd} 件を新しい内容に更新しました`);
+}
+
+/* ---------- サンプル ---------- */
+$('#bSample').onclick = () => {
+  const check = '※サンプル（記憶から入力）。使う前に DOI の「取得」で書誌情報を確認すること。';
+  const S = [
+    {title:'Leading-edge vortices in insect flight', authors:['Ellington, C. P.','van den Berg, C.','Willmott, A. P.','Thomas, A. L. R.'], year:'1996', journal:'Nature', volume:'384', number:'6610', pages:'626-630', doi:'10.1038/384626a0', tags:['羽ばたき','空力','前縁渦'], status:'read', stars:3, summary:'スズメガ（Manduca）の羽ばたきで、翼前縁に安定した前縁渦（LEV）ができ、準定常理論より大きな揚力を生むことを可視化で示した。'},
+    {title:'Wing rotation and the aerodynamic basis of insect flight', authors:['Dickinson, M. H.','Lehmann, F.-O.','Sane, S. P.'], year:'1999', journal:'Science', volume:'284', number:'5422', pages:'1954-1960', doi:'10.1126/science.284.5422.1954', tags:['羽ばたき','空力','実験'], status:'reading', stars:3, summary:'ロボット翼（油中）で、遅れ失速・回転循環・後流捕獲の3つの機構を力計測で分けて示した。'},
+    {title:'The aerodynamics of insect flight', authors:['Sane, S. P.'], year:'2003', journal:'Journal of Experimental Biology', volume:'206', number:'23', pages:'4191-4208', doi:'10.1242/jeb.00663', tags:['羽ばたき','レビュー'], status:'unread', stars:2},
+    {title:'Recent progress in flapping wing aerodynamics and aeroelasticity', authors:['Shyy, W.','Aono, H.','Chimakurthi, S. K.','Trizila, P.','Kang, C.-K.','Cesnik, C. E. S.','Liu, H.'], year:'2010', journal:'Progress in Aerospace Sciences', volume:'46', number:'7', pages:'284-327', doi:'10.1016/j.paerosci.2010.01.001', tags:['羽ばたき','レビュー','空力弾性'], status:'unread', stars:2},
+    {title:'Aerodynamic efficiency of a bioinspired flapping wing rotor at low Reynolds number', authors:['Li, H.','Guo, S.'], year:'2018', journal:'Royal Society Open Science', volume:'5', number:'3', pages:'171307', doi:'10.1098/rsos.171307', tags:['FWR','空力','CFD'], status:'cite', stars:3, summary:'羽ばたきロータ（FWR）の空力効率を低レイノルズ数で調べた。', usage:'序論：FWR の先行研究として'},
+  ];
+  for (const s of S) addPaper(Object.assign(blank(), s, {tags: [...s.tags, 'サンプル'], note: check}));
+  persist(); render(); toast('サンプルを入れました（タグ「サンプル」で絞り込めます）');
+};
+
+/* ---------- 一覧の操作 ---------- */
+$('#list').addEventListener('click', e => {
+  const pdf = e.target.closest('[data-pdf]');
+  if (pdf){ e.stopPropagation(); return openPdf(papers.find(p => p.id === pdf.dataset.pdf)); }
+  const li = e.target.closest('.paper'); if (li) openEdit(papers.find(p => p.id === li.dataset.id));
+});
+$('#tagChips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; tagFilter = tagFilter === c.dataset.tag ? '' : c.dataset.tag; render(); });
+for (const id of ['#q', '#fStatus', '#fSort']) $(id).addEventListener('input', () => { render(); kvSet('view', {status: $('#fStatus').value, sort: $('#fSort').value}); });
+$('#fStatus').insertAdjacentHTML('beforeend', STATUS.map(([v, l]) => `<option value="${v}">${l}</option>`).join(''));
+F().status.innerHTML = STATUS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('dialog[open]')){ e.preventDefault(); $('#q').focus(); }
+});
+
+/* ---------- 起動 ---------- */
+(async () => {
+  try { db = await openDB(); } catch { toast('この端末では保存できません（プライベートモード？）', 4000); }
+  try {
+    papers = ((await kvGet('papers')) || []).map(p => Object.assign(blank(), p));
+    dirHandle = (await kvGet('dir')) || null;
+    $('#fsAuto').checked = !!(await kvGet('autoSave'));
+    const v = await kvGet('view'); if (v){ $('#fStatus').value = v.status || ''; $('#fSort').value = v.sort || 'added'; }
+  } catch (e) { toast('読み込みに失敗: ' + e.message); }
+  render();
+})();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>

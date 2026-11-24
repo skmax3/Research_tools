@@ -11,7 +11,7 @@ struct EdgeBarrier {
 
     /// 止める時間（秒）
     var hold: TimeInterval = 0.4
-    /// false: 下の境目だけ止める（Dock が下にあるとき）／ true: 上下左右すべて
+    /// false: 上下の境目だけ止める（下は Dock、上はメニューバーを出しやすく）／ true: 上下左右すべて
     var allSides = false
     /// この時間押すのをやめたら、止めた時間の数え直し
     var resetAfter: TimeInterval = 0.5
@@ -22,15 +22,17 @@ struct EdgeBarrier {
 
     /// カーソルが prev から next へ動こうとしたとき、止めるなら止める位置を返す。そのまま通すなら nil
     mutating func filter(from prev: CGPoint, to next: CGPoint, screens: [CGRect], now: Date) -> CGPoint? {
-        guard let a = screens.first(where: { Self.contains($0, prev) }) else { reset(); return nil }
-        if Self.contains(a, next) {
+        // 同じ画面の中の動きは何もしない。画面が重なっている（BetterDisplay の仮想画面・ミラーなど）ときも、
+        // 前と今の位置を両方含む画面があれば「境目を越えた」とはみなさない（画面の途中で止まらないように）
+        if screens.contains(where: { Self.contains($0, prev) && Self.contains($0, next) }) {
             if let last = lastPush, now.timeIntervalSince(last) > resetAfter { reset() }
             return nil
         }
+        guard let a = screens.first(where: { Self.contains($0, prev) }) else { reset(); return nil }
         // 別の画面へ入るときだけ止める（どの画面でもない所へは、macOS が端で止める）
         guard screens.contains(where: { Self.contains($0, next) }) else { return nil }
         let edge = Self.edge(leaving: a, to: next)
-        if !allSides && edge != .bottom { return nil }
+        if !allSides && edge != .bottom && edge != .top { return nil }
 
         if let last = lastPush, now.timeIntervalSince(last) > resetAfter { reset() }
         if hitStart == nil || holdingEdge != edge {

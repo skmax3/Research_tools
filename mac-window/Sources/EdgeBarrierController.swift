@@ -46,7 +46,11 @@ final class EdgeBarrierController {
             }
             return
         }
+        // ドラッグ中は止めないが、カーソルの位置を覚えておくために受け取る
         let mask = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+            | CGEventMask(1 << CGEventType.rightMouseDragged.rawValue)
+            | CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon else { return Unmanaged.passUnretained(event) }
             let me = Unmanaged<EdgeBarrierController>.fromOpaque(refcon).takeUnretainedValue()
@@ -84,9 +88,18 @@ final class EdgeBarrierController {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
-        guard type == .mouseMoved, screens.count > 1 else { return Unmanaged.passUnretained(event) }
         let next = event.location
-        let prev = last ?? next
+        guard type == .mouseMoved, screens.count > 1 else {
+            last = next  // ドラッグなどは止めずに、位置だけ覚える
+            return Unmanaged.passUnretained(event)
+        }
+        // 前の位置：覚えている位置が、この動きの量から逆算した位置と大きく違えば（ほかの方法でカーソルが動いた）、逆算のほうを使う。
+        // 古い位置のままだと「境目を越えた」と勘違いして、境目ではない所へカーソルを引き戻してしまう
+        let dx = CGFloat(event.getIntegerValueField(.mouseEventDeltaX))
+        let dy = CGFloat(event.getIntegerValueField(.mouseEventDeltaY))
+        let back = CGPoint(x: next.x - dx, y: next.y - dy)
+        var prev = back
+        if let last, hypot(last.x - back.x, last.y - back.y) < 40 { prev = last }
         logic.hold = settings.edgeHold
         logic.allSides = settings.edgeAllSides
         if let p = logic.filter(from: prev, to: next, screens: screens, now: Date()) {

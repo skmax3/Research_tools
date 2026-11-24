@@ -513,7 +513,7 @@ struct GeneralTab: View {
                         Text(String(format: "%.1f 秒", settings.edgeHold)).monospacedDigit().frame(width: 60, alignment: .trailing)
                     }
                     Picker("止める境目", selection: $settings.edgeAllSides) {
-                        Text("下だけ（Dock が下）").tag(false)
+                        Text("上下だけ（Dock とメニューバー）").tag(false)
                         Text("上下左右すべて").tag(true)
                     }
                     .pickerStyle(.segmented)
@@ -521,7 +521,7 @@ struct GeneralTab: View {
             } header: {
                 Text("境目でカーソルを止める")
             } footer: {
-                Text("4K モニターの下に MacBook を置いていると、Dock を出そうとしたカーソルが MacBook 側へ抜けてしまいます。オンにすると、境目でカーソルがいったん止まって Dock が出ます。そのまま押し続ければ下の画面へ移れます。\(Shortcut.named("barrier").flatMap { settings.combo(for: $0)?.label } ?? "") でオン・オフできます。")
+                Text("4K モニターの下に MacBook を置いていると、Dock を出そうとしたカーソルが MacBook 側へ抜けてしまいます。オンにすると、境目でカーソルがいったん止まって Dock が出ます。MacBook から上へ動かすときも、MacBook のメニューバーで止まります。そのまま押し続ければ隣の画面へ移れます。\(Shortcut.named("barrier").flatMap { settings.combo(for: $0)?.label } ?? "") でオン・オフできます。")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

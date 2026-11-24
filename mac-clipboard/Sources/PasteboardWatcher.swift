@@ -13,6 +13,8 @@ final class PasteboardWatcher {
     /// このアプリ自身が書き込んだときの changeCount（自分のコピーを記録しないため）
     var ownChange = -1
     var paused = false
+    /// 履歴に入れたとき（先頭のものを渡す）。ほかの端末へ自動で送るのに使う
+    var onCaptured: ((ClipItem) -> Void)?
 
     /// パスワードマネージャーなどが「記録しないで」と付ける印（nspasteboard.org の取り決め）
     private let ignoredTypes: Set<String> = [
@@ -66,6 +68,7 @@ final class PasteboardWatcher {
                 (item.width, item.height) = ImageUtil.pixelSize(img)
             }
             store.add(item, thumb: thumb)
+            captured()
             if urls.count == 1, UTType(filenameExtension: urls[0].pathExtension)?.conforms(to: .movie) == true {
                 let id = item.id, url = urls[0]
                 Task { @MainActor [weak self] in
@@ -87,6 +90,7 @@ final class PasteboardWatcher {
             item.appID = appID
             item.hash = ClipStore.hash(png)
             store.add(item, image: png, thumb: ImageUtil.thumbnail(img, maxSide: 360))
+            captured()
             return
         }
 
@@ -100,6 +104,11 @@ final class PasteboardWatcher {
         let rtf = pb.data(forType: .rtf)
         item.hasRTF = rtf != nil
         store.add(item, rtf: rtf)
+        captured()
+    }
+
+    private func captured() {
+        if let top = store.items.first { onCaptured?(top) }
     }
 
     private func readImage() -> NSImage? {

@@ -25,6 +25,8 @@ public sealed class Agent : IDisposable
     string lastSentHash = "";
     DateTime lastSentAt = DateTime.MinValue;
     bool warnedQuick;
+    /// ペアリング直後の最初の受信（24時間分の履歴）は、一覧に入れるだけで、クリップボードも通知も変えない
+    bool silentNext;
 
     /// 通知（タイトル, 本文）
     public event Action<string, string>? Notify;
@@ -62,6 +64,7 @@ public sealed class Agent : IDisposable
             return;
         }
         quickKey = config.Quick.Length > 0 ? SyncCrypto.FromBase64(config.Quick) : null;
+        silentNext = config.LastSeq == 0;
         var client = new RelayClient(config.Relay, keys.Room, Config.DeviceName);
         relay = client;
         cts = new CancellationTokenSource();
@@ -133,6 +136,7 @@ public sealed class Agent : IDisposable
             {
                 var list = await client.ListAsync(config.LastSeq, token);
                 SetConnected(true);
+                var silent = silentNext;
                 var got = new List<Received>();
                 var stopped = false;
                 foreach (var item in list)
@@ -162,8 +166,12 @@ public sealed class Agent : IDisposable
                     if (content is not null) got.Add(new Received(DeviceLabel(item.Device), content, DateTime.Now));
                 }
                 config.Save();
-                if (got.Count > 0) ui.Post(_ => Deliver(got), null);
-                if (stopped || list.Count < 50) break;  // 50件ずつ返ってくる。続きがあれば、もう一度
+                if (got.Count > 0) ui.Post(_ => Deliver(got, silent), null);
+                if (stopped || list.Count < 50)  // 50件ずつ返ってくる。続きがなければ終わり
+                {
+                    if (!stopped) silentNext = false;
+                    break;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -229,10 +237,15 @@ public sealed class Agent : IDisposable
     }
 
     /// 届いたものを受け取る（UI スレッド）
-    void Deliver(List<Received> got)
+    void Deliver(List<Received> got, bool silent)
     {
         foreach (var r in got) recent.Insert(0, r);
         while (recent.Count > 10) recent.RemoveAt(recent.Count - 1);
+        if (silent)
+        {
+            StateChanged?.Invoke();
+            return;
+        }
         var newest = got[^1];  // 一覧は古い順なので、最後がいちばん新しい
         if (config.AutoCopy) Apply(newest.Content);
         Notify?.Invoke($"{newest.Device}から届きました",

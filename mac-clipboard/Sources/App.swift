@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let compressItem = NSMenuItem(title: "古い画像を軽くする", action: nil, keyEquivalent: "")
     private let compressMenu = NSMenu()
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
-    private let pairItem = NSMenuItem(title: "iPhone とペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
+    private let autoSendItem = NSMenuItem(title: "コピーしたら、ほかの端末へ自動で送る", action: #selector(AppDelegate.toggleAutoSend), keyEquivalent: "")
+    private let pairItem = NSMenuItem(title: "端末のペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
     private let trustItem = NSMenuItem(title: "自動貼り付けを許可する（アクセシビリティ）…", action: #selector(AppDelegate.openAccessibility), keyEquivalent: "")
 
@@ -59,6 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sync.onSent = { [weak self] ok, message in
             self?.flashStatus(symbol: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
                               title: ok ? " 送信しました" : " \(message)", seconds: ok ? 3 : 6)
+        }
+        // コピーしたら、ほかの端末へ自動で送る（設定がオンのときだけ。テキストと画像）
+        watcher.onCaptured = { [weak self] item in
+            guard let self, Settings.syncAutoSend, self.sync.paired else { return }
+            let sendable = item.kind == .text || item.kind == .image
+                || (item.kind == .files && item.category == .image && item.paths.count == 1)
+            if sendable { self.sync.send([item], quiet: true) }
         }
         panel = PanelController(store: store, paster: paster, sync: sync) { [weak self] in self?.pairing.show() }
         setupStatusItem()
@@ -110,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(loginItem)
         menu.addItem(trustItem)
         menu.addItem(.separator())
+        menu.addItem(autoSendItem)
         menu.addItem(pairItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "保存フォルダを開く", action: #selector(openFolder), keyEquivalent: ""))
@@ -142,8 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pauseItem.state = watcher.paused ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         updateItem.isHidden = Self.updateScript == nil
-        pairItem.title = sync.paired ? "iPhone との接続…" : "iPhone とペアリング…"
+        pairItem.title = "端末のペアリング…（iPhone・Windows・Android）"
         pairItem.state = sync.paired && sync.connected ? .on : .off
+        autoSendItem.state = Settings.syncAutoSend ? .on : .off
         let used = ByteCountFormatter.string(fromByteCount: store.totalBytes(), countStyle: .file)
         storageItem.title = "履歴の容量: \(used) ／ 上限 \(StoragePolicy.label(mb: Settings.maxStorageMB))"
         for it in storageMenu.items { it.state = it.tag == Settings.maxStorageMB ? .on : .off }
@@ -171,6 +181,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openPairing() { pairing.show() }
+
+    /// コピーしたら、ほかの端末へ自動で送る。パスワードなども送ってしまうので、最初はオフ
+    @objc private func toggleAutoSend() {
+        if !Settings.syncAutoSend, !sync.paired {
+            pairing.show()  // 先にペアリングが必要
+            return
+        }
+        Settings.syncAutoSend.toggle()
+    }
 
     /// メニューバーのアイコンを一時的に変えて、届いた・送ったことを知らせる
     private func flashStatus(symbol: String, title: String, seconds: Double) {
@@ -269,7 +288,13 @@ enum Settings {
         set { UserDefaults.standard.set(newValue, forKey: "maxStorageMB") }
     }
 
-    /// iPhone から届いたものを、Mac のクリップボードにも入れる
+    /// コピーしたら、ほかの端末へ自動で送る（最初はオフ。パスワードマネージャーが「記録しないで」と印を付けたコピーは、そもそも記録されない）
+    static var syncAutoSend: Bool {
+        get { UserDefaults.standard.object(forKey: "syncAutoSend") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "syncAutoSend") }
+    }
+
+    /// ほかの端末から届いたものを、Mac のクリップボードにも入れる
     static var syncAutoCopy: Bool {
         get { UserDefaults.standard.object(forKey: "syncAutoCopy") as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: "syncAutoCopy") }

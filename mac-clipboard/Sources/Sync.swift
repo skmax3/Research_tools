@@ -425,22 +425,23 @@ final class SyncManager: ObservableObject {
         let message: String
     }
 
-    /// 選んだ項目を順に iPhone へ送る（テキストと画像。ファイルは1枚の画像のときだけ）
-    func send(_ items: [ClipItem]) {
+    /// 選んだ項目を順に、ほかの端末（iPhone・Windows・Android）へ送る（テキストと画像。ファイルは1枚の画像のときだけ）。
+    /// quiet が true なら、送れたときは知らせない（自動で送るとき。失敗したときだけ知らせる）
+    func send(_ items: [ClipItem], quiet: Bool = false) {
         guard keys != nil else {
-            onSent?(false, "先にペアリングしてください")
+            if !quiet { onSent?(false, "先にペアリングしてください") }
             return
         }
-        sendNext(items, index: 0, sent: 0, firstError: nil)
+        sendNext(items, index: 0, sent: 0, firstError: nil, quiet: quiet)
     }
 
-    private func sendNext(_ items: [ClipItem], index: Int, sent: Int, firstError: String?) {
+    private func sendNext(_ items: [ClipItem], index: Int, sent: Int, firstError: String?, quiet: Bool) {
         guard index < items.count else {
             if sent == 0 {
                 onSent?(false, firstError ?? "送れませんでした")
-            } else {
+            } else if !quiet {
                 let note = firstError.map { "（一部は送れませんでした: \($0)）" } ?? ""
-                onSent?(true, "\(sent)件を iPhone に送りました\(note)")
+                onSent?(true, "\(sent)件を、ほかの端末に送りました\(note)")
             }
             return
         }
@@ -450,7 +451,7 @@ final class SyncManager: ObservableObject {
             let prepared = self.prepare(item)
             DispatchQueue.main.async {
                 func fail(_ message: String) {
-                    self.sendNext(items, index: index + 1, sent: sent, firstError: firstError ?? message)
+                    self.sendNext(items, index: index + 1, sent: sent, firstError: firstError ?? message, quiet: quiet)
                 }
                 switch prepared {
                 case .failure(let e):
@@ -464,7 +465,7 @@ final class SyncManager: ObservableObject {
                     self.request("/r/\(keys.room)/items", method: "POST", body: sealed) { result in
                         if case .success(let r) = result, r.status == 201 {
                             self.connected = true
-                            self.sendNext(items, index: index + 1, sent: sent + 1, firstError: firstError)
+                            self.sendNext(items, index: index + 1, sent: sent + 1, firstError: firstError, quiet: quiet)
                         } else {
                             fail("通信できませんでした")
                         }

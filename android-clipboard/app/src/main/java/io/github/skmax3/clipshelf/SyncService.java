@@ -193,6 +193,7 @@ public final class SyncService extends Service {
     private void pollOnce() {
         try {
             List<RelayClient.Item> list = relay.list(prefs.lastSeq());
+            final boolean silent = prefs.silentNext();
             List<Inbox.Entry> got = new ArrayList<>();
             boolean aborted = false;
             for (RelayClient.Item item : list) {
@@ -217,8 +218,9 @@ public final class SyncService extends Service {
                 Inbox.Entry entry = decode(item.device, blob);
                 if (entry != null) got.add(entry);
             }
-            if (!got.isEmpty()) main.post(() -> deliver(got));
+            if (!got.isEmpty()) main.post(() -> deliver(got, silent));
             if (!aborted && list.size() >= 50) pollAgain.set(true);  // 50件ずつ返ってくる。続きがあれば、もう一度
+            else if (!aborted && silent) prefs.setSilentNext(false);
         } catch (IOException e) {
             Log.w(TAG, "受信できませんでした: " + e.getMessage());
         }
@@ -275,8 +277,12 @@ public final class SyncService extends Service {
     }
 
     /** 届いたものを受け取る（画面のスレッド） */
-    private void deliver(List<Inbox.Entry> got) {
+    private void deliver(List<Inbox.Entry> got, boolean silent) {
         for (Inbox.Entry e : got) Inbox.add(e);
+        if (silent) {
+            Inbox.notifyChanged();
+            return;
+        }
         Inbox.Entry newest = got.get(got.size() - 1);  // 一覧は古い順なので、最後がいちばん新しい
         boolean copied = false;
         if (prefs.autoCopy()) {

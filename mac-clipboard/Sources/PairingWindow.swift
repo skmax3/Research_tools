@@ -18,7 +18,7 @@ enum QRCode {
     }
 }
 
-/// 「iPhone とペアリング」の画面
+/// 「端末のペアリング」の画面（iPhone・Windows・Android）
 final class PairingWindowController {
     private var window: NSWindow?
     private let sync: SyncManager
@@ -33,7 +33,7 @@ final class PairingWindowController {
         if window == nil {
             let host = NSHostingController(rootView: PairingView(sync: sync))
             let w = NSWindow(contentViewController: host)
-            w.title = "iPhone とペアリング"
+            w.title = "端末のペアリング"
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             w.center()
@@ -61,7 +61,7 @@ struct PairingView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Text("iPhone とペアリング").font(.title2.bold())
+            Text("端末のペアリング").font(.title2.bold())
 
             if let url = sync.pairingURL {
                 if let qr = QRCode.image(url, size: 240) {
@@ -174,7 +174,7 @@ struct PairingView: View {
                 Text(sync.lastReceived).font(.caption).foregroundStyle(.secondary)
             }
 
-            Toggle("iPhone から届いたら、Mac のクリップボードにも入れる", isOn: Binding(
+            Toggle("ほかの端末から届いたら、Mac のクリップボードにも入れる", isOn: Binding(
                 get: { Settings.syncAutoCopy },
                 set: { Settings.syncAutoCopy = $0 }
             ))

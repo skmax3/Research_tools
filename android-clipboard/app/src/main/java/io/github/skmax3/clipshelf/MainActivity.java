@@ -110,7 +110,7 @@ public final class MainActivity extends Activity implements Inbox.Listener {
 
     private void renderUnpaired(LinearLayout root) {
         root.addView(text("最初に、Mac とペアリングします（1回だけ）", 16, true));
-        root.addView(text("1. Mac のクリップ棚のメニューバーのアイコン →「iPhone との接続…」を開く\n"
+        root.addView(text("1. Mac のクリップ棚のメニューバーのアイコン →「端末のペアリング…」を開く\n"
                 + "2.「Windows・Android アプリ用のコードをコピー」を押す\n"
                 + "3. そのコードを、この端末に送って（メモや自分宛てのメッセージなど）、下の欄に貼り付ける\n"
                 + "※ コードには鍵が入っているので、自分の端末以外には送らないでください", 14, false));

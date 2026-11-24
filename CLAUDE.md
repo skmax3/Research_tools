@@ -15,6 +15,9 @@ FWR（羽ばたきロータ機）研究用の小さなWebツール集。GitHub P
   - ビルド・テストは GitHub Actions（`windows-latest`）で行う。このクラウド環境では .NET が使えないので、push 後の Actions の結果でコンパイルを確認し、動作確認はユーザーの Windows で行う。
   - 配布は GitHub の Releases（`main` に入ると、Actions が 1 つの exe を zip にして更新する）。
   - 画面を持たない部分（暗号など）は、別プロジェクトのテストで、Mac・Web 版と同じ固定の値との一致を確かめる。
+- 例外: Android ネイティブアプリは `android-*/` フォルダに置く（例 `android-clipboard/`）。Java（Android の標準 API のみ。外部ライブラリは使わない）、ビルドは Gradle。
+  - ビルド・テストは GitHub Actions（`ubuntu-latest`）で行う。このクラウド環境には Android SDK がないので、Android に依存しない部分（暗号・通信）は、Java だけで書いて `javac` でテストし、アプリ本体は Actions のビルドで確認する。動作確認はユーザーの Android で行う。
+  - 配布は GitHub の Releases（`main` に入ると、Actions が APK を更新する）。
 - スマホ（iPhone Safari）と Mac の両方で使えること。ホーム画面アプリ化のため各フォルダに
   `manifest.webmanifest` / `sw.js`（ネットワーク優先・オフライン時キャッシュ）/ `icon-192.png` `icon-512.png` `apple-touch-icon.png` を置く。`photo-memo/` を雛形にする。
 - 新しいツールを追加したら、ルートの `index.html` の一覧と `README.md` の表に1行追加する。

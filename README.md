@@ -15,6 +15,7 @@ FWR 研究で使う小さなWebツールをまとめたリポジトリです。�
 
 | アプリ | フォルダ | 説明 |
 |---|---|---|
+| クリップ棚（Android） | [`android-clipboard/`](android-clipboard/) | バックグラウンドで待ち続けて、Mac・iPhone・Windows から届いたものをクリップボードに入れる。共有メニュー・クイック設定のタイルで送る。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-android-latest) |
 | クリップ棚（Windows） | [`win-clipboard/`](win-clipboard/) | タスクトレイに住んで、Mac・iPhone とクリップボードをやり取り（Ctrl+Alt+S で送信、届いたら Ctrl+V で貼れる）。[最新版](https://github.com/skmax3/Research_tools/releases/tag/clipshelf-win-latest) |
 | クリップ棚 | [`mac-clipboard/`](mac-clipboard/) | ⌘C を自動記録し、⇧⌘X で画面下から履歴を出して貼り付け |
 | 窓割り | [`mac-window/`](mac-window/) | 4K モニター向けのウィンドウ配置。⌃⌥A で作業中のウィンドウの横に AI を出す、⌃⌥1〜9 で「AI＋執筆＋PDF」などを一発で並べる |

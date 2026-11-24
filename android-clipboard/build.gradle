@@ -1,0 +1,4 @@
+// Android アプリ（クリップ棚）。外部のライブラリは使わず、Android の標準だけで作る（ビルドの道具の Android Gradle Plugin だけ使う）
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

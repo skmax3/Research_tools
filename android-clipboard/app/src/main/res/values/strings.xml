@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">クリップ棚</string>
+    <string name="send_clipboard">今のコピーを送る</string>
+    <string name="send_clipboard_long">今のコピーを、ほかの端末へ送る</string>
+</resources>

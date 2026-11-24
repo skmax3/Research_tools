@@ -30,7 +30,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: テスト（Java 部分: 暗号・ペアリングコード）
+      - name: テスト（Java の部分。暗号・ペアリングコード・通信）
         working-directory: android-clipboard/tests
         run: |
           mkdir -p /tmp/core-out

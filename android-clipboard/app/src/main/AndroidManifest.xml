@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false">
+
+        <!-- 本体の画面 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!-- 共有メニュー（写真・スクショ・テキストを、ほかの端末へ送る） -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/app_name"
+            android:theme="@style/Translucent">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- 今のクリップボードを送る（通知・クイック設定・アイコンの長押しから） -->
+        <activity
+            android:name=".SendClipboardActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Translucent" />
+
+        <!-- ほかの端末から届くのを、バックグラウンドで待ち続ける -->
+        <service
+            android:name=".SyncService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="ほかの端末（Mac・iPhone・Windows）から、クリップボードの内容が届くのを待ち続ける" />
+        </service>
+
+        <!-- クイック設定のタイル（画面の上から引き下げて、1回タップで送る） -->
+        <service
+            android:name=".SendTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat"
+            android:label="@string/send_clipboard"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 通知の「コピー」ボタン -->
+        <receiver
+            android:name=".CopyReceiver"
+            android:exported="false" />
+
+        <!-- 届いた画像を、ほかのアプリに貼り付けられるように渡す -->
+        <provider
+            android:name=".ImageProvider"
+            android:authorities="io.github.skmax3.clipshelf.images"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+
+</manifest>

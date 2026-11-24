@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- アプリのアイコンを長押ししたときのメニュー -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="send_clipboard"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat"
+        android:shortcutShortLabel="@string/send_clipboard"
+        android:shortcutLongLabel="@string/send_clipboard_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.skmax3.clipshelf"
+            android:targetClass="io.github.skmax3.clipshelf.SendClipboardActivity" />
+    </shortcut>
+</shortcuts>

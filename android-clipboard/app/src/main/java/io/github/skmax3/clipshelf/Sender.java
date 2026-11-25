@@ -28,6 +28,11 @@ final class Sender {
 
     /** 送る。成功したら null、失敗したら、画面に出すメッセージ */
     static String sendBlocking(Context context, Clips.Content content) {
+        return sendBlocking(context, content, true);
+    }
+
+    /** record が true なら、送ったものを履歴にも残す（履歴から送り直すときは false） */
+    static String sendBlocking(Context context, Clips.Content content, boolean record) {
         Prefs prefs = new Prefs(context);
         if (!prefs.paired()) return "先にペアリングしてください";
         try {
@@ -46,7 +51,9 @@ final class Sender {
             } else if (body.length > MAX_BYTES) {
                 return "テキストが大きすぎます";
             }
-            return relay.post(SyncCrypto.seal(keys, content.kind, name, mime, body)) ? null : "送れませんでした";
+            if (!relay.post(SyncCrypto.seal(keys, content.kind, name, mime, body))) return "送れませんでした";
+            if (record) Inbox.addLocal(context, content.kind, name, mime, body);  // 送ったものも履歴に残す
+            return null;
         } catch (IOException e) {
             return "通信できませんでした";
         } catch (GeneralSecurityException e) {

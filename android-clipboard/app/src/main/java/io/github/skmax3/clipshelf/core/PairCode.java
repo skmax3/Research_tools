@@ -2,6 +2,7 @@ package io.github.skmax3.clipshelf.core;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -23,6 +24,27 @@ public final class PairCode {
         this.secret = secret;
         this.relay = relay;
         this.quick = quick;
+    }
+
+    /** iPhone 用ページ。ペアリング用リンクの行き先 */
+    public static final String PAIR_PAGE = "https://skmax3.github.io/Research_tools/clip-send/";
+
+    /** この端末で新しく始める（新しい鍵を作る） */
+    public static PairCode fresh() {
+        return new PairCode(SyncCrypto.newSecret(), DEFAULT_RELAY, "");
+    }
+
+    /**
+     * ペアリング用リンク（どの端末でも共通の形）。iPhone はタップで、Android・Windows は貼り付けでペアリングできる。
+     * 鍵が入っているので、自分の端末以外には送らないこと
+     */
+    public static String link(String secret, String relay, String quick) {
+        try {
+            return PAIR_PAGE + "#k=" + secret + "&s=" + URLEncoder.encode(relay, "UTF-8")
+                    + (quick == null || quick.isEmpty() ? "" : "&q=" + quick);
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** 読めなければ null */

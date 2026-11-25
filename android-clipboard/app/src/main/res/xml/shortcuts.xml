@@ -12,4 +12,15 @@
             android:targetPackage="io.github.skmax3.clipshelf"
             android:targetClass="io.github.skmax3.clipshelf.SendClipboardActivity" />
     </shortcut>
+    <shortcut
+        android:shortcutId="open_panel"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat"
+        android:shortcutShortLabel="@string/open_panel"
+        android:shortcutLongLabel="@string/open_panel_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="io.github.skmax3.clipshelf"
+            android:targetClass="io.github.skmax3.clipshelf.PanelActivity" />
+    </shortcut>
 </shortcuts>

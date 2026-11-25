@@ -59,9 +59,18 @@ final class Prefs {
         sp.edit().putLong("lastSeq", seq).apply();
     }
 
+    /** ペアリング直後の最初の受信（24時間分の履歴）は、一覧に入れるだけで、クリップボードも通知も変えない */
+    boolean silentNext() {
+        return sp.getBoolean("silentNext", false);
+    }
+
+    void setSilentNext(boolean value) {
+        sp.edit().putBoolean("silentNext", value).apply();
+    }
+
     void pair(PairCode code) {
         sp.edit().putString("secret", code.secret).putString("relay", code.relay).putString("quick", code.quick)
-                .putLong("lastSeq", 0).putBoolean("serviceEnabled", true).apply();
+                .putLong("lastSeq", 0).putBoolean("serviceEnabled", true).putBoolean("silentNext", true).apply();
     }
 
     void unpair() {

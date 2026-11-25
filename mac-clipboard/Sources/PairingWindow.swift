@@ -18,7 +18,7 @@ enum QRCode {
     }
 }
 
-/// 「iPhone とペアリング」の画面
+/// 「端末のペアリング」の画面（iPhone・Windows・Android）
 final class PairingWindowController {
     private var window: NSWindow?
     private let sync: SyncManager
@@ -33,7 +33,7 @@ final class PairingWindowController {
         if window == nil {
             let host = NSHostingController(rootView: PairingView(sync: sync))
             let w = NSWindow(contentViewController: host)
-            w.title = "iPhone とペアリング"
+            w.title = "端末のペアリング"
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             w.center()
@@ -58,10 +58,12 @@ struct PairingView: View {
     @State private var confirmReset = false
     @State private var quickCopied = false
     @State private var deviceCopied = false
+    @State private var joinCode = ""
+    @State private var joinMessage = ""
 
     var body: some View {
         VStack(spacing: 14) {
-            Text("iPhone とペアリング").font(.title2.bold())
+            Text("端末のペアリング").font(.title2.bold())
 
             if let url = sync.pairingURL {
                 if let qr = QRCode.image(url, size: 240) {
@@ -174,7 +176,7 @@ struct PairingView: View {
                 Text(sync.lastReceived).font(.caption).foregroundStyle(.secondary)
             }
 
-            Toggle("iPhone から届いたら、Mac のクリップボードにも入れる", isOn: Binding(
+            Toggle("ほかの端末から届いたら、Mac のクリップボードにも入れる", isOn: Binding(
                 get: { Settings.syncAutoCopy },
                 set: { Settings.syncAutoCopy = $0 }
             ))
@@ -184,6 +186,26 @@ struct PairingView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            DisclosureGroup("ほかの端末（iPhone・Android・Windows）で始めたペアリングに参加する") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("その端末の「ほかの端末をペアリング」で送ったリンクを、ここに貼り付けます。今の Mac のペアリングは、置き換わります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("ペアリング用リンク（https://…#k=…）", text: $joinCode)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("参加する") {
+                            joinMessage = sync.join(code: joinCode) ? "参加しました" : "リンクが正しくありません"
+                            if joinMessage == "参加しました" { joinCode = "" }
+                        }
+                        .disabled(joinCode.isEmpty)
+                        Text(joinMessage).font(.caption)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .font(.callout)
 
             Button("ペアリングを解除する（鍵を作り直す）", role: .destructive) { confirmReset = true }
                 .font(.callout)

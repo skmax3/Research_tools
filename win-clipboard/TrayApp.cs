@@ -6,11 +6,14 @@ namespace ClipShelfWin;
 public sealed class TrayApp : ApplicationContext
 {
     const int HotKeySend = 1;
+    const int HotKeyPanel = 2;
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string ReleasePage = "https://github.com/skmax3/Research_tools/releases/tag/clipshelf-win-latest";
 
     readonly Config config = Config.Load();
+    readonly HistoryStore history = new();
     readonly Agent agent;
+    readonly PanelForm panel;
     readonly MessageWindow window = new();
     readonly NotifyIcon tray = new();
     readonly ContextMenuStrip menu = new();
@@ -18,14 +21,19 @@ public sealed class TrayApp : ApplicationContext
     readonly ToolStripMenuItem recentItem = new("届いたもの");
     readonly ToolStripMenuItem autoSendItem = new("コピーするたびに、ほかの端末へ自動で送る");
     readonly ToolStripMenuItem autoCopyItem = new("届いたら、すぐクリップボードに入れる");
+    readonly ToolStripMenuItem pauseItem = new("記録を一時停止する");
     readonly ToolStripMenuItem startupItem = new("Windows の起動時に自動で開始");
 
     public TrayApp()
     {
-        agent = new Agent(config, SynchronizationContext.Current ?? new SynchronizationContext());
+        Theme.Refresh();
+        history.Load();
+        agent = new Agent(config, history, SynchronizationContext.Current ?? new SynchronizationContext());
+        panel = new PanelForm(history, agent);
         agent.Notify += (title, text) => tray.ShowBalloonTip(4000, title, text, ToolTipIcon.Info);
         agent.StateChanged += UpdateText;
 
+        var open = new ToolStripMenuItem("履歴を開く（Ctrl+Alt+X）", null, (_, _) => panel.Toggle());
         var send = new ToolStripMenuItem("今のコピーを、ほかの端末へ送る（Ctrl+Alt+S）", null, (_, _) => agent.SendClipboardNow());
         var pair = new ToolStripMenuItem("ペアリング…", null, (_, _) => ShowPairForm());
         var update = new ToolStripMenuItem("最新版をダウンロードするページを開く", null, (_, _) => OpenUrl(ReleasePage));
@@ -37,27 +45,37 @@ public sealed class TrayApp : ApplicationContext
         autoCopyItem.CheckOnClick = true;
         autoCopyItem.Checked = config.AutoCopy;
         autoCopyItem.CheckedChanged += (_, _) => { config.AutoCopy = autoCopyItem.Checked; config.Save(); };
+        pauseItem.CheckOnClick = true;
+        pauseItem.Checked = config.Paused;
+        pauseItem.CheckedChanged += (_, _) => { config.Paused = pauseItem.Checked; config.Save(); };
         startupItem.CheckOnClick = true;
         startupItem.Checked = StartupEnabled();
         startupItem.CheckedChanged += (_, _) => SetStartup(startupItem.Checked);
 
         menu.Items.AddRange(new ToolStripItem[]
         {
-            stateItem, new ToolStripSeparator(), send, recentItem, new ToolStripSeparator(),
-            autoSendItem, autoCopyItem, startupItem, new ToolStripSeparator(), pair, update, quit,
+            stateItem, new ToolStripSeparator(), open, send, recentItem, new ToolStripSeparator(),
+            autoSendItem, autoCopyItem, pauseItem, startupItem, new ToolStripSeparator(), pair, update, quit,
         });
         menu.Opening += (_, _) => RefreshMenu();
 
         tray.Icon = LoadIcon();
         tray.Text = "クリップ棚";
         tray.ContextMenuStrip = menu;
-        tray.DoubleClick += (_, _) => agent.SendClipboardNow();
+        tray.DoubleClick += (_, _) => panel.Toggle();
         tray.Visible = true;
 
         window.ClipboardChanged += agent.OnClipboardChanged;
-        window.HotKeyPressed += id => { if (id == HotKeySend) agent.SendClipboardNow(); };
+        window.HotKeyPressed += id =>
+        {
+            if (id == HotKeySend) agent.SendClipboardNow();
+            else if (id == HotKeyPanel) panel.Toggle();
+        };
         if (!window.RegisterHotKey(HotKeySend, MessageWindow.Control | MessageWindow.Alt, Keys.S))
             tray.ShowBalloonTip(5000, "Ctrl+Alt+S を登録できませんでした", "ほかのアプリが使っているようです。トレイのメニューからも送れます。", ToolTipIcon.Warning);
+
+        if (!window.RegisterHotKey(HotKeyPanel, MessageWindow.Control | MessageWindow.Alt, Keys.X))
+            tray.ShowBalloonTip(5000, "Ctrl+Alt+X を登録できませんでした", "ほかのアプリが使っているようです。トレイのメニューからも開けます。", ToolTipIcon.Warning);
 
         UpdateText();
         agent.Start();
@@ -97,7 +115,7 @@ public sealed class TrayApp : ApplicationContext
 
     void ShowPairForm()
     {
-        using var form = new PairForm(config.Paired);
+        using var form = new PairForm(config.Paired, config.Paired ? PairInfo.Link(config.Secret, config.Relay, config.Quick) : "");
         if (form.ShowDialog() != DialogResult.OK) return;
         if (form.Unpair) agent.Unpair();
         else if (form.Result is not null) agent.Pair(form.Result);
@@ -138,6 +156,7 @@ public sealed class TrayApp : ApplicationContext
         tray.Visible = false;
         tray.Dispose();
         window.Dispose();
+        panel.Dispose();
         agent.Dispose();
         base.ExitThreadCore();
     }

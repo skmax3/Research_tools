@@ -84,18 +84,18 @@ final class SyncManager: ObservableObject {
     // MARK: - ペアリング
 
     /// QR に入れるアドレス。秘密は # より後ろに入れるので、GitHub などのサーバーには送られない
+    /// 高速モードの鍵（q）も入れる。iPhone などが、ほかの端末をペアリングするときに、この鍵も渡せるように（どの端末でも共通の形）
     var pairingURL: String? {
         guard let secret else { return nil }
         let s = relay.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? relay
-        return "\(Self.pairPage)#k=\(secret)&s=\(s)"
+        let q = quickKey.map { "&q=" + SyncCrypto.base64url($0.x963Representation) } ?? ""
+        return "\(Self.pairPage)#k=\(secret)&s=\(s)\(q)"
     }
 
     /// Windows・Android アプリに貼り付けるコード。iPhone のペアリングコードに、高速モードの鍵（秘密鍵）が付く。
     /// 同じ鍵を持つ端末は、iPhone のショートカットから高速モードで送られたものも開ける。自分の端末にだけ貼り付ける
     var deviceCode: String? {
-        guard let base = pairingURL, let quickKey else { return nil }
-        let q = SyncCrypto.base64url(quickKey.x963Representation)
-        return base.components(separatedBy: "#").last.map { "\($0)&q=\(q)" } ?? base
+        pairingURL?.components(separatedBy: "#").last
     }
 
     /// 高速モードの送信先。iPhone の「ショートカット」に貼り付ける。部屋ID を含むので、人に見せない
@@ -115,6 +115,51 @@ final class SyncManager: ObservableObject {
         saveConfig()
         paired = true
         start()
+    }
+
+    /// ほかの端末（iPhone・Android・Windows）が送ったペアリング用リンク・コードで参加する。読めなければ false。
+    /// 高速モードの鍵（q）が付いていれば、それを使う（同じグループの端末が、同じ鍵で開ける）
+    @discardableResult
+    func join(code: String) -> Bool {
+        guard let parsed = Self.parsePairing(code), let k = try? SyncCrypto.derive(secret: parsed.secret) else { return false }
+        stop()
+        secret = parsed.secret
+        keys = k
+        relay = parsed.relay
+        UserDefaults.standard.removeObject(forKey: "relayURL")
+        if let q = parsed.quick, let raw = SyncCrypto.fromBase64(q),
+           let key = try? P256.KeyAgreement.PrivateKey(x963Representation: raw) {
+            quickKey = key
+        } else {
+            quickKey = P256.KeyAgreement.PrivateKey()
+        }
+        quickProblem = false
+        lastSeq = 0
+        saveConfig()
+        paired = true
+        start()
+        return true
+    }
+
+    /// ペアリング用リンク（…#k=…&s=…&q=…）・コード（k=…）・秘密だけ、のどれでも読む
+    static func parsePairing(_ text: String) -> (secret: String, relay: String, quick: String?)? {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let h = t.firstIndex(of: "#") { t = String(t[t.index(after: h)...]) }
+        while t.hasPrefix("?") || t.hasPrefix("#") { t.removeFirst() }
+        var query: [String: String] = [:]
+        for part in t.split(separator: "&") {
+            let kv = part.split(separator: "=", maxSplits: 1).map(String.init)
+            if kv.count == 2 { query[kv[0]] = kv[1].removingPercentEncoding ?? kv[1] }
+        }
+        let isSecret: (String) -> Bool = { s in
+            s.count == 43 && s.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        }
+        guard let secret = query["k"] ?? (isSecret(t) ? t : nil), isSecret(secret) else { return nil }
+        var relay = (query["s"] ?? defaultRelay).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !relay.hasPrefix("http://") && !relay.hasPrefix("https://") { relay = "https://" + relay }
+        while relay.hasSuffix("/") { relay.removeLast() }
+        let q = query["q"].flatMap { SyncCrypto.fromBase64($0)?.count == 97 ? $0 : nil }
+        return (secret, relay, q)
     }
 
     /// ペアリングを解除する。サーバー上の中身も消す。次にペアリング画面を開くと新しい鍵ができる
@@ -425,22 +470,23 @@ final class SyncManager: ObservableObject {
         let message: String
     }
 
-    /// 選んだ項目を順に iPhone へ送る（テキストと画像。ファイルは1枚の画像のときだけ）
-    func send(_ items: [ClipItem]) {
+    /// 選んだ項目を順に、ほかの端末（iPhone・Windows・Android）へ送る（テキストと画像。ファイルは1枚の画像のときだけ）。
+    /// quiet が true なら、送れたときは知らせない（自動で送るとき。失敗したときだけ知らせる）
+    func send(_ items: [ClipItem], quiet: Bool = false) {
         guard keys != nil else {
-            onSent?(false, "先にペアリングしてください")
+            if !quiet { onSent?(false, "先にペアリングしてください") }
             return
         }
-        sendNext(items, index: 0, sent: 0, firstError: nil)
+        sendNext(items, index: 0, sent: 0, firstError: nil, quiet: quiet)
     }
 
-    private func sendNext(_ items: [ClipItem], index: Int, sent: Int, firstError: String?) {
+    private func sendNext(_ items: [ClipItem], index: Int, sent: Int, firstError: String?, quiet: Bool) {
         guard index < items.count else {
             if sent == 0 {
                 onSent?(false, firstError ?? "送れませんでした")
-            } else {
+            } else if !quiet {
                 let note = firstError.map { "（一部は送れませんでした: \($0)）" } ?? ""
-                onSent?(true, "\(sent)件を iPhone に送りました\(note)")
+                onSent?(true, "\(sent)件を、ほかの端末に送りました\(note)")
             }
             return
         }
@@ -450,7 +496,7 @@ final class SyncManager: ObservableObject {
             let prepared = self.prepare(item)
             DispatchQueue.main.async {
                 func fail(_ message: String) {
-                    self.sendNext(items, index: index + 1, sent: sent, firstError: firstError ?? message)
+                    self.sendNext(items, index: index + 1, sent: sent, firstError: firstError ?? message, quiet: quiet)
                 }
                 switch prepared {
                 case .failure(let e):
@@ -464,7 +510,7 @@ final class SyncManager: ObservableObject {
                     self.request("/r/\(keys.room)/items", method: "POST", body: sealed) { result in
                         if case .success(let r) = result, r.status == 201 {
                             self.connected = true
-                            self.sendNext(items, index: index + 1, sent: sent + 1, firstError: firstError)
+                            self.sendNext(items, index: index + 1, sent: sent + 1, firstError: firstError, quiet: quiet)
                         } else {
                             fail("通信できませんでした")
                         }

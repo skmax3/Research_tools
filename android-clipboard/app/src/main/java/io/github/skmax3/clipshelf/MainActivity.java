@@ -109,10 +109,10 @@ public final class MainActivity extends Activity implements Inbox.Listener {
     }
 
     private void renderUnpaired(LinearLayout root) {
-        root.addView(text("最初に、Mac とペアリングします（1回だけ）", 16, true));
-        root.addView(text("1. Mac のクリップ棚のメニューバーのアイコン →「iPhone との接続…」を開く\n"
-                + "2.「Windows・Android アプリ用のコードをコピー」を押す\n"
-                + "3. そのコードを、この端末に送って（メモや自分宛てのメッセージなど）、下の欄に貼り付ける\n"
+        root.addView(text("最初に、ほかの端末とペアリングします（1回だけ）", 16, true));
+        root.addView(text("・Mac から: クリップ棚のメニューバーのアイコン →「端末のペアリング…」→「Windows・Android アプリ用のコードをコピー」\n"
+                + "・iPhone・Windows・ほかの Android から: その端末の「ほかの端末をペアリング」でリンクを送る\n"
+                + "届いたコード（リンク）を、下の欄に貼り付けて「ペアリング」。LINE などで届いたリンクを長押し →「共有」→「クリップ棚」でもペアリングできます\n"
                 + "※ コードには鍵が入っているので、自分の端末以外には送らないでください", 14, false));
         codeField = new EditText(this);
         codeField.setHint("ここにペアリングコードを貼り付け");
@@ -121,6 +121,17 @@ public final class MainActivity extends Activity implements Inbox.Listener {
         codeField.setGravity(Gravity.TOP);
         root.addView(codeField);
         root.addView(button("ペアリング", v -> pair()));
+        root.addView(text("まだどの端末にもクリップ棚がないとき", 16, true));
+        root.addView(button("この端末で新しく始める", v -> new AlertDialog.Builder(this)
+                .setMessage("この端末で新しい鍵を作って始めますか？（すでに Mac などでクリップ棚を使っているなら、そちらのコードでペアリングしてください）")
+                .setPositiveButton("始める", (d, w) -> {
+                    prefs.pair(PairCode.fresh());
+                    startSync(true);
+                    render();
+                    Toast.makeText(this, "始めました。「ほかの端末をペアリング」で、ほかの端末をつなげます", Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("やめる", null)
+                .show()));
     }
 
     private void pair() {
@@ -140,6 +151,9 @@ public final class MainActivity extends Activity implements Inbox.Listener {
     private void renderPaired(LinearLayout root) {
         root.addView(text(SyncService.running ? "ペアリング済み・バックグラウンドで待っています" : "ペアリング済み・待ち受けは止まっています", 14, false));
 
+        root.addView(button("ほかの端末をペアリング（リンクを送る）", v -> shareLink()));
+        root.addView(button("履歴パネルを開く（コピーしたものの一覧）",
+                v -> startActivity(new Intent(this, PanelActivity.class))));
         root.addView(button("今のクリップボードを、ほかの端末へ送る",
                 v -> startActivity(new Intent(this, SendClipboardActivity.class))));
 
@@ -157,12 +171,14 @@ public final class MainActivity extends Activity implements Inbox.Listener {
             render();
         }));
 
-        root.addView(text("届いたもの（直近10件）", 16, true));
+        root.addView(text("最近の履歴（くわしくは「履歴パネル」で）", 16, true));
         java.util.List<Inbox.Entry> entries = Inbox.list();
         if (entries.isEmpty()) {
             root.addView(text("まだ届いていません。Mac・iPhone・Windows から送ると、ここに出ます。", 14, false));
         }
+        int shown = 0;
         for (Inbox.Entry e : entries) {
+            if (++shown > 10) break;
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -183,6 +199,8 @@ public final class MainActivity extends Activity implements Inbox.Listener {
         root.addView(text("・送る: ほかのアプリの共有メニューで「クリップ棚」を選ぶ（写真・スクショ・テキスト）\n"
                 + "・コピーしたものを送る: 画面の上から引き下げて、クイック設定のタイル「今のコピーを送る」をタップ"
                 + "（タイルは、クイック設定の編集（鉛筆）から追加）。アプリのアイコンの長押しや、通知のボタンからも送れる\n"
+                + "・履歴パネル（Mac の ⇧⌘X に当たる）: 画面の上から引き下げて、クイック設定のタイル「履歴を開く」をタップ（鉛筆から追加）。"
+                + "アイコンの長押しや、通知のボタンからも開ける。開いたときに、今のコピーも履歴に入る。カードをタップ＝コピー、長押し＝送る・ピン留め・削除\n"
                 + "・届いたもの: 設定がオンなら、クリップボードに入っているので、そのまま貼り付けられる", 14, false));
 
         root.addView(text("バックグラウンドで止まらないようにする", 16, true));
@@ -200,6 +218,13 @@ public final class MainActivity extends Activity implements Inbox.Listener {
                 })
                 .setNegativeButton("やめる", null)
                 .show()));
+    }
+
+    /** ペアリング用リンクを、LINE・メールなどで、自分のほかの端末へ送る */
+    private void shareLink() {
+        String link = PairCode.link(prefs.secret(), prefs.relay(), prefs.quick());
+        Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link);
+        startActivity(Intent.createChooser(send, "ペアリング用リンクを送る（自分の端末だけに）"));
     }
 
     private void requestIgnoreBatteryOptimization() {

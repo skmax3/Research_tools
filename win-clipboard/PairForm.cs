@@ -11,7 +11,7 @@ public sealed class PairForm : Form
     /// 「解除」を押したとき
     public bool Unpair { get; private set; }
 
-    public PairForm(bool paired)
+    public PairForm(bool paired, string link = "")
     {
         Text = "クリップ棚: ペアリング";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -25,17 +25,38 @@ public sealed class PairForm : Form
 
         var guide = new Label
         {
-            Left = 16, Top = 14, Width = 508, Height = 138,
-            Text = (paired ? "すでにペアリング済みです。別の Mac とつなぎ直すときは、新しいコードを貼り付けてください。\r\n\r\n" : "")
-                 + "1. Mac のクリップ棚のメニューバーのアイコン →「iPhone との接続…」を開く\r\n"
-                 + "2.「Windows・Android アプリ用のコードをコピー」を押す\r\n"
-                 + "3. そのコードを、下の欄に貼り付けて「ペアリング」を押す\r\n"
+            Left = 16, Top = 12, Width = 508, Height = 172,
+            Text = (paired ? "すでにペアリング済みです。ほかの端末をつなげるときは「ほかの端末をペアリング用のリンクをコピー」を押して、その端末に送ってください。つなぎ直すときは、新しいコードを貼り付けてください。\r\n\r\n" : "")
+                 + "・Mac から: クリップ棚のメニューバーのアイコン →「端末のペアリング…」→「Windows・Android アプリ用のコードをコピー」\r\n"
+                 + "・iPhone・Android・ほかの PC から: その端末の「ほかの端末をペアリング」でリンクを送る\r\n"
+                 + "届いたコード（リンク）を、下の欄に貼り付けて「ペアリング」を押す\r\n"
                  + "（コードは、メモや自分宛てのメッセージなどで、この PC に送れます。自分の端末以外には送らないでください）",
         };
-        code.SetBounds(16, 158, 508, 100);
-        var ok = new Button { Text = "ペアリング", Left = 16, Top = 276, Width = 130, Height = 36 };
-        var cancel = new Button { Text = "閉じる", Left = 156, Top = 276, Width = 100, Height = 36, DialogResult = DialogResult.Cancel };
-        var unpair = new Button { Text = "ペアリングを解除", Left = 394, Top = 276, Width = 130, Height = 36, Visible = paired };
+        code.SetBounds(16, 190, 508, 80);
+        var ok = new Button { Text = "ペアリング", Left = 16, Top = 280, Width = 130, Height = 36 };
+        var cancel = new Button { Text = "閉じる", Left = 156, Top = 280, Width = 100, Height = 36, DialogResult = DialogResult.Cancel };
+        var unpair = new Button { Text = "ペアリングを解除", Left = 394, Top = 280, Width = 130, Height = 36, Visible = paired };
+        var share = new Button { Text = paired ? "ほかの端末をペアリング用のリンクをコピー" : "この PC で新しく始める", Left = 16, Top = 322, Width = 508, Height = 36 };
+        ClientSize = new Size(540, 376);
+        share.Click += (_, _) =>
+        {
+            if (paired)
+            {
+                try
+                {
+                    Clipboard.SetText(link);
+                    MessageBox.Show(this, "リンクをコピーしました。LINE・メールなどで、自分のほかの端末に送ってください。\r\n"
+                        + "iPhone はリンクをタップ、Android・Windows はアプリに貼り付けるとつながります。\r\n（リンクには鍵が入っているので、自分の端末以外には送らないでください）",
+                        Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception) { MessageBox.Show(this, "コピーできませんでした。もう一度押してください。", Text); }
+                return;
+            }
+            if (MessageBox.Show(this, "この PC で新しい鍵を作って始めますか？（すでに Mac などでクリップ棚を使っているなら、そちらのコードでペアリングしてください）",
+                    Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            Result = PairInfo.Fresh();
+            DialogResult = DialogResult.OK;
+        };
 
         ok.Click += (_, _) =>
         {
@@ -63,7 +84,7 @@ public sealed class PairForm : Form
             DialogResult = DialogResult.OK;
         };
 
-        Controls.AddRange(new Control[] { guide, code, ok, cancel, unpair });
+        Controls.AddRange(new Control[] { guide, code, ok, cancel, unpair, share });
         AcceptButton = ok;
         CancelButton = cancel;
     }

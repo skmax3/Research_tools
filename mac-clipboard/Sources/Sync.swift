@@ -84,18 +84,18 @@ final class SyncManager: ObservableObject {
     // MARK: - ペアリング
 
     /// QR に入れるアドレス。秘密は # より後ろに入れるので、GitHub などのサーバーには送られない
+    /// 高速モードの鍵（q）も入れる。iPhone などが、ほかの端末をペアリングするときに、この鍵も渡せるように（どの端末でも共通の形）
     var pairingURL: String? {
         guard let secret else { return nil }
         let s = relay.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? relay
-        return "\(Self.pairPage)#k=\(secret)&s=\(s)"
+        let q = quickKey.map { "&q=" + SyncCrypto.base64url($0.x963Representation) } ?? ""
+        return "\(Self.pairPage)#k=\(secret)&s=\(s)\(q)"
     }
 
     /// Windows・Android アプリに貼り付けるコード。iPhone のペアリングコードに、高速モードの鍵（秘密鍵）が付く。
     /// 同じ鍵を持つ端末は、iPhone のショートカットから高速モードで送られたものも開ける。自分の端末にだけ貼り付ける
     var deviceCode: String? {
-        guard let base = pairingURL, let quickKey else { return nil }
-        let q = SyncCrypto.base64url(quickKey.x963Representation)
-        return base.components(separatedBy: "#").last.map { "\($0)&q=\(q)" } ?? base
+        pairingURL?.components(separatedBy: "#").last
     }
 
     /// 高速モードの送信先。iPhone の「ショートカット」に貼り付ける。部屋ID を含むので、人に見せない
@@ -115,6 +115,51 @@ final class SyncManager: ObservableObject {
         saveConfig()
         paired = true
         start()
+    }
+
+    /// ほかの端末（iPhone・Android・Windows）が送ったペアリング用リンク・コードで参加する。読めなければ false。
+    /// 高速モードの鍵（q）が付いていれば、それを使う（同じグループの端末が、同じ鍵で開ける）
+    @discardableResult
+    func join(code: String) -> Bool {
+        guard let parsed = Self.parsePairing(code), let k = try? SyncCrypto.derive(secret: parsed.secret) else { return false }
+        stop()
+        secret = parsed.secret
+        keys = k
+        relay = parsed.relay
+        UserDefaults.standard.removeObject(forKey: "relayURL")
+        if let q = parsed.quick, let raw = SyncCrypto.fromBase64(q),
+           let key = try? P256.KeyAgreement.PrivateKey(x963Representation: raw) {
+            quickKey = key
+        } else {
+            quickKey = P256.KeyAgreement.PrivateKey()
+        }
+        quickProblem = false
+        lastSeq = 0
+        saveConfig()
+        paired = true
+        start()
+        return true
+    }
+
+    /// ペアリング用リンク（…#k=…&s=…&q=…）・コード（k=…）・秘密だけ、のどれでも読む
+    static func parsePairing(_ text: String) -> (secret: String, relay: String, quick: String?)? {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let h = t.firstIndex(of: "#") { t = String(t[t.index(after: h)...]) }
+        while t.hasPrefix("?") || t.hasPrefix("#") { t.removeFirst() }
+        var query: [String: String] = [:]
+        for part in t.split(separator: "&") {
+            let kv = part.split(separator: "=", maxSplits: 1).map(String.init)
+            if kv.count == 2 { query[kv[0]] = kv[1].removingPercentEncoding ?? kv[1] }
+        }
+        let isSecret: (String) -> Bool = { s in
+            s.count == 43 && s.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        }
+        guard let secret = query["k"] ?? (isSecret(t) ? t : nil), isSecret(secret) else { return nil }
+        var relay = (query["s"] ?? defaultRelay).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !relay.hasPrefix("http://") && !relay.hasPrefix("https://") { relay = "https://" + relay }
+        while relay.hasSuffix("/") { relay.removeLast() }
+        let q = query["q"].flatMap { SyncCrypto.fromBase64($0)?.count == 97 ? $0 : nil }
+        return (secret, relay, q)
     }
 
     /// ペアリングを解除する。サーバー上の中身も消す。次にペアリング画面を開くと新しい鍵ができる

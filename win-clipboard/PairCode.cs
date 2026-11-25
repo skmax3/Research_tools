@@ -7,6 +7,16 @@ namespace ClipShelfWin;
 public sealed record PairInfo(string Secret, string Relay, string Quick)
 {
     public const string DefaultRelay = "https://fwr-clip.fwrtools.workers.dev";
+    /// iPhone 用ページ。ペアリング用リンクの行き先
+    public const string PairPage = "https://skmax3.github.io/Research_tools/clip-send/";
+
+    /// ペアリング用リンク（どの端末でも共通の形）。iPhone はタップで、Android・Windows は貼り付けでペアリングできる。
+    /// 鍵が入っているので、自分の端末以外には送らないこと
+    public static string Link(string secret, string relay, string quick) =>
+        $"{PairPage}#k={secret}&s={Uri.EscapeDataString(relay)}" + (quick.Length > 0 ? "&q=" + quick : "");
+
+    /// この PC で新しく始める（新しい鍵を作る）
+    public static PairInfo Fresh() => new(SyncCrypto.NewSecret(), DefaultRelay, "");
 
     static readonly Regex SecretShape = new("^[A-Za-z0-9_-]{43}$", RegexOptions.Compiled);
 

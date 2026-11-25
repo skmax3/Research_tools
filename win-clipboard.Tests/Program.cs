@@ -107,6 +107,12 @@ Check("iPhone 用コード: 高速モードの鍵なし", url?.Quick ?? "x", "")
 Check("秘密だけでも読める（中継は既定）", PairInfo.Parse("  " + vecSecret + "\n")?.Relay ?? "", PairInfo.DefaultRelay);
 Check("ホスト名だけの中継は https を補う", PairInfo.Parse($"k={vecSecret}&s=relay.example.com")?.Relay ?? "", "https://relay.example.com");
 Check("形の違う高速モードの鍵は無視する", PairInfo.Parse($"k={vecSecret}&q=AAAA")?.Quick ?? "x", "");
+var link = PairInfo.Link(vecSecret, "https://fwr-clip.fwrtools.workers.dev", quickCode);
+Check("リンク: 形（Web 版・Android 版と同じ）", link,
+    $"https://skmax3.github.io/Research_tools/clip-send/#k={vecSecret}&s=https%3A%2F%2Ffwr-clip.fwrtools.workers.dev&q={quickCode}");
+Check("リンク: 往復（高速モードの鍵）", PairInfo.Parse("LINE で届いた文: " + link)?.Quick ?? "", quickCode);
+Check("リンク: 高速モードの鍵なし", PairInfo.Link(vecSecret, PairInfo.DefaultRelay, "").EndsWith("workers.dev").ToString(), "True");
+Check("新しく始める: 秘密は43文字", PairInfo.Fresh().Secret.Length.ToString(), "43");
 Check("でたらめは拒否", (PairInfo.Parse("でたらめ") is null).ToString(), "True");
 Check("空は拒否", (PairInfo.Parse("") is null).ToString(), "True");
 Check("短い秘密は拒否", (PairInfo.Parse("k=short") is null).ToString(), "True");

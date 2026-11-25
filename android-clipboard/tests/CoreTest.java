@@ -147,6 +147,16 @@ public class CoreTest {
         check("コード: 秘密", full.secret, vecSecret);
         check("コード: 中継サーバー", full.relay, "https://example.workers.dev");
         check("コード: 高速モードの鍵", full.quick, quickCode);
+        String link = PairCode.link(vecSecret, "https://fwr-clip.fwrtools.workers.dev", quickCode);
+        check("リンク: 形（Web 版・Windows 版と同じ）", link,
+                "https://skmax3.github.io/Research_tools/clip-send/#k=" + vecSecret + "&s=https%3A%2F%2Ffwr-clip.fwrtools.workers.dev&q=" + quickCode);
+        PairCode back2 = PairCode.parse("LINE で届いた文: " + link);
+        check("リンク: 往復（秘密）", back2.secret, vecSecret);
+        check("リンク: 往復（高速モードの鍵）", back2.quick, quickCode);
+        check("リンク: 高速モードの鍵なし", PairCode.link(vecSecret, PairCode.DEFAULT_RELAY, "").endsWith("workers.dev"), true);
+        PairCode fresh = PairCode.fresh();
+        check("新しく始める: 秘密は43文字", fresh.secret.length(), 43);
+        check("新しく始める: 毎回違う", fresh.secret.equals(PairCode.fresh().secret), false);
         PairCode url = PairCode.parse("https://skmax3.github.io/Research_tools/clip-send/#k=" + vecSecret + "&s=https%3A%2F%2Ffwr-clip.fwrtools.workers.dev");
         check("iPhone 用コード（アドレス全体）: 秘密", url.secret, vecSecret);
         check("iPhone 用コード: 高速モードの鍵なし", url.quick, "");

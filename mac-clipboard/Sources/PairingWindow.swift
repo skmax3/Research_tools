@@ -58,6 +58,8 @@ struct PairingView: View {
     @State private var confirmReset = false
     @State private var quickCopied = false
     @State private var deviceCopied = false
+    @State private var joinCode = ""
+    @State private var joinMessage = ""
 
     var body: some View {
         VStack(spacing: 14) {
@@ -184,6 +186,26 @@ struct PairingView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            DisclosureGroup("ほかの端末（iPhone・Android・Windows）で始めたペアリングに参加する") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("その端末の「ほかの端末をペアリング」で送ったリンクを、ここに貼り付けます。今の Mac のペアリングは、置き換わります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("ペアリング用リンク（https://…#k=…）", text: $joinCode)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("参加する") {
+                            joinMessage = sync.join(code: joinCode) ? "参加しました" : "リンクが正しくありません"
+                            if joinMessage == "参加しました" { joinCode = "" }
+                        }
+                        .disabled(joinCode.isEmpty)
+                        Text(joinMessage).font(.caption)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .font(.callout)
 
             Button("ペアリングを解除する（鍵を作り直す）", role: .destructive) { confirmReset = true }
                 .font(.callout)

@@ -115,7 +115,7 @@ public sealed class TrayApp : ApplicationContext
 
     void ShowPairForm()
     {
-        using var form = new PairForm(config.Paired);
+        using var form = new PairForm(config.Paired, config.Paired ? PairInfo.Link(config.Secret, config.Relay, config.Quick) : "");
         if (form.ShowDialog() != DialogResult.OK) return;
         if (form.Unpair) agent.Unpair();
         else if (form.Result is not null) agent.Pair(form.Result);

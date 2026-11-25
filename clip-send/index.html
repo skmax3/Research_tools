@@ -75,14 +75,19 @@ label.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin:8px 0}
   <!-- ペアリング前 -->
   <section id="pair" hidden>
     <div class="card">
-      <p><b>最初に Mac とペアリングします（1回だけ）</b></p>
+      <p><b>最初に、ほかの端末とペアリングします（1回だけ）</b></p>
       <p class="help">
-        1. Mac の<b>クリップ棚</b>のメニューバーアイコン →「<b>端末のペアリング…</b>」を開く<br>
-        2. 出てきた <b>QR を iPhone のカメラで読み取る</b>（このページが開きます）<br>
-        ホーム画面に追加したアプリで使う場合は、Mac のウィンドウの「コードをコピー」を押して、下の欄に貼り付けてください。
+        <b>Mac から</b>: クリップ棚のメニューバーアイコン →「<b>端末のペアリング…</b>」の <b>QR を iPhone のカメラで読み取る</b>（このページが開きます）<br>
+        <b>Android・Windows・ほかの iPhone から</b>: その端末の「<b>ほかの端末をペアリング</b>」で送ったリンクを、この iPhone で<b>タップ</b>する<br>
+        ホーム画面に追加したアプリで使う場合は、リンク（コード）をコピーして、下の欄に貼り付けてください。
       </p>
       <textarea id="code" placeholder="ここにペアリングコードを貼り付け" style="min-height:70px"></textarea>
       <div class="row"><button class="btn primary" id="bPair">ペアリング</button></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <p><b>まだどの端末にもクリップ棚がないとき</b></p>
+      <p class="help">この iPhone で新しい鍵を作って始めます。そのあと「設定」→「ほかの端末をペアリング」で、ほかの端末をつなげます。</p>
+      <div class="row"><button class="btn" id="bNew">この iPhone で新しく始める</button></div>
     </div>
     <p class="help" style="margin-top:14px">写真や文章は、この端末で暗号化してから送ります。中継サーバーは鍵を持たないので、中身は読めません。</p>
   </section>
@@ -133,11 +138,12 @@ label.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin:8px 0}
     <details>
       <summary>設定</summary>
       <div class="card" style="margin-top:10px">
-        <p class="help">ホーム画面に追加したアプリは、Safari とは保存場所が別です。アプリで使うときは、ここで「コードをコピー」して、アプリ側の最初の画面に貼り付けてください。</p>
+        <p class="help">「ほかの端末をペアリング」で、LINE・メール・AirDrop などからリンクを送ります。iPhone はタップ、Android・Windows はアプリに貼り付けるとつながります（リンクには鍵が入っているので、自分の端末以外には送らないでください）。ホーム画面に追加したアプリは Safari と保存場所が別なので、「リンクをコピー」してアプリ側の最初の画面に貼り付けてください。</p>
         <label class="chk"><input type="checkbox" id="optAuto"> 開いたとき、自動でクリップボードを読み込む</label>
         <label class="chk"><input type="checkbox" id="optAutoSend"> 読み込んだら、ほかの端末へ自動で送る</label>
         <div class="row">
-          <button class="btn" id="bCopyCode">ペアリングコードをコピー</button>
+          <button class="btn primary" id="bShare">ほかの端末をペアリング（リンクを送る）</button>
+          <button class="btn" id="bCopyCode">ペアリング用リンクをコピー</button>
           <button class="btn danger" id="bUnpair">ペアリングを解除</button>
         </div>
       </div>
@@ -209,9 +215,13 @@ function parsePair(text){
   if(!k&&/^[A-Za-z0-9_-]{43}$/.test(t))k=t;
   if(!k||!/^[A-Za-z0-9_-]{43}$/.test(k))return null;
   let s=(p.get('s')||DEFAULT_RELAY).trim();if(!/^https?:\/\//.test(s))s='https://'+s;
-  return {k,s:s.replace(/\/+$/,'')};
+  // 高速モードの鍵（Mac が作る。97バイト＝base64url で 130 文字）。あれば、ほかの端末に渡すために覚えておく
+  const q=p.get('q');
+  return {k,s:s.replace(/\/+$/,''),q:q&&/^[A-Za-z0-9_-]{130}$/.test(q)?q:''};
 }
-const pairString=()=>`k=${cfg.k}&s=${encodeURIComponent(cfg.s)}`;
+const PAIR_PAGE='https://skmax3.github.io/Research_tools/clip-send/';
+/* ペアリング用リンク。iPhone はタップで、Android・Windows は貼り付けでペアリングできる（共通の形） */
+const pairLink=()=>`${PAIR_PAGE}#k=${cfg.k}&s=${encodeURIComponent(cfg.s)}${cfg.q?'&q='+cfg.q:''}`;
 
 let toastT=null;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
@@ -221,7 +231,7 @@ const hhmm=d=>`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).
 /* ---------- ペアリング ---------- */
 async function setup(c){
   try{keys=await Sync.derive(c.k)}catch(_){toast('コードが正しくありません');return false}
-  cfg=c;LS.set('k',c.k);LS.set('s',c.s);return true;
+  cfg=c;LS.set('k',c.k);LS.set('s',c.s);if(c.q)LS.set('q',c.q);else LS.del('q');return true;
 }
 function show(){
   $('#pair').hidden=!!cfg;$('#main').hidden=!cfg;
@@ -480,9 +490,18 @@ $('#bCurSend').onclick=sendCur;
 $('#optAuto').checked=LS.get('auto')!=='0';$('#optAuto').onchange=e=>LS.set('auto',e.target.checked?'1':'0');
 $('#optAutoSend').checked=LS.get('autosend')==='1';$('#optAutoSend').onchange=e=>LS.set('autosend',e.target.checked?'1':'0');
 $('#bRefresh').onclick=()=>poll(true);
-$('#bCopyCode').onclick=async()=>{try{await navigator.clipboard.writeText(pairString());toast('コピーしました')}catch(_){toast('コピーできませんでした')}};
+$('#bCopyCode').onclick=async()=>{try{await navigator.clipboard.writeText(pairLink());toast('コピーしました')}catch(_){toast('コピーできませんでした')}};
+$('#bShare').onclick=async()=>{
+  const text=pairLink();
+  if(navigator.share){try{await navigator.share({title:'クリップ棚のペアリング',text});return}catch(e){if(e&&e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(text);toast('コピーしました。ほかの端末に送ってください')}catch(_){toast('コピーできませんでした')}
+};
+$('#bNew').onclick=async()=>{
+  if(!confirm('この iPhone で新しい鍵を作って始めますか？（すでに Mac などでクリップ棚を使っているなら、そちらの QR・リンクでペアリングしてください）'))return;
+  if(await setup({k:Sync.newSecret(),s:DEFAULT_RELAY,q:''})){show();poll(false);toast('始めました。「設定」からほかの端末をペアリングできます')}
+};
 $('#bUnpair').onclick=()=>{if(!confirm('ペアリングを解除しますか？（もう一度 Mac の QR を読み取れば再開できます）'))return;
-  LS.del('k');LS.del('s');cfg=keys=null;after=0;seen.clear();$('#sent').innerHTML='';hist=[];idb.clear();renderHist();
+  LS.del('k');LS.del('s');LS.del('q');cfg=keys=null;after=0;seen.clear();$('#sent').innerHTML='';hist=[];idb.clear();renderHist();
   $('#sentEmpty').hidden=false;show()};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){poll(false);if(LS.get('auto')!=='0')loadClipboard(false)}});
 setInterval(()=>{if(!document.hidden)poll(false)},10000);
@@ -502,7 +521,7 @@ window.addEventListener('hashchange',pairFromHash);
 (async()=>{
   if(!(await pairFromHash())){
     const k=LS.get('k'),s=LS.get('s');
-    if(k)await setup({k,s:s||DEFAULT_RELAY});
+    if(k)await setup({k,s:s||DEFAULT_RELAY,q:LS.get('q')||''});
     show();poll(false);
   }
   loadHist();

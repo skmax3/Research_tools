@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
+import io.github.skmax3.clipshelf.core.PairCode;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,14 @@ public final class ShareActivity extends Activity {
         final String text = sharedText;
         if (uris.isEmpty() && (text == null || text.isEmpty())) {
             Toast.makeText(app, "送れるものがありません", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+        // まだペアリングしていない端末に、ペアリング用リンクが共有されたら、そのままペアリングする
+        if (!new Prefs(app).paired() && text != null && PairCode.parse(text) != null) {
+            new Prefs(app).pair(PairCode.parse(text));
+            Toast.makeText(app, "ペアリングしました", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(app, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             finish();
             return;
         }

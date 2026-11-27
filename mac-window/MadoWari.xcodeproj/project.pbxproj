@@ -17,6 +17,7 @@
 		5E103962AB20792F86445810 /* KeyCombo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3692FE14AC2D5C9B1B5667C9 /* KeyCombo.swift */; };
 		6C5D6F2C5E930158D041FFBD /* EdgeBarrierController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBADE17589DA5E7623F21201 /* EdgeBarrierController.swift */; };
 		6C92DA22FC12C0F8477D3D11 /* StageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A1E62FFB2C4F3BC3BA0A63 /* StageManager.swift */; };
+		742582E84E3EBC9AB27F743C /* MadoWariURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C35393DD6D9005BFE3E00E7 /* MadoWariURL.swift */; };
 		9D40186DB4DA1CF07DDB0E1E /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7C0DCD086D8F82C54F5045 /* Toast.swift */; };
 		A0ABB32A78BFCC57996EB4B8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EAE02C714B1C4C7DED4A45 /* AppSettings.swift */; };
 		A41FCE6D7F1306CE3A03088A /* Shortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7033F39C4E19B20D659F6CBC /* Shortcuts.swift */; };
@@ -24,6 +25,7 @@
 		B45CEE2C6FAC089F13884540 /* Desktops.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7DC99DBFEEE457D30580E8 /* Desktops.swift */; };
 		C7D26581C8655714A3B07B01 /* WindowMover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65388FF4636A07F62D27719 /* WindowMover.swift */; };
 		E9F4655F7E9610E1E761A780 /* EdgeLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C804E69ABF1FD88D47825D29 /* EdgeLogic.swift */; };
+		EBAF3465E50734E87D017B2F /* URLCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19D427EF3B86876B8E5EDCE /* URLCommands.swift */; };
 		EC531403B6447A0879E566A5 /* LayoutBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8B7B4488AC516173A98E3C /* LayoutBoard.swift */; };
 		EF6137921996D25F7765BAE1 /* Layouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D5EEE3E2634F56B9F1DAAF3 /* Layouts.swift */; };
 		F6396FEB40F108AF851C1069 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF14F5141697AF13DD729558 /* SettingsView.swift */; };
@@ -43,9 +45,11 @@
 		7033F39C4E19B20D659F6CBC /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
 		7B7F323156DBF48724EDB853 /* Geometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geometry.swift; sourceTree = "<group>"; };
 		7CC4B309C3157A0C21B885CB /* HotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKey.swift; sourceTree = "<group>"; };
+		8C35393DD6D9005BFE3E00E7 /* MadoWariURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MadoWariURL.swift; sourceTree = "<group>"; };
 		8EB5236C84ED9FB2CA9D7075 /* Presets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Presets.swift; sourceTree = "<group>"; };
 		A0775622D77DE9962439F0B7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A65388FF4636A07F62D27719 /* WindowMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMover.swift; sourceTree = "<group>"; };
+		B19D427EF3B86876B8E5EDCE /* URLCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLCommands.swift; sourceTree = "<group>"; };
 		C804E69ABF1FD88D47825D29 /* EdgeLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeLogic.swift; sourceTree = "<group>"; };
 		D2A1E62FFB2C4F3BC3BA0A63 /* StageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageManager.swift; sourceTree = "<group>"; };
 		D53FE5C9E2E0C28EDC3A66DD /* WindowList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowList.swift; sourceTree = "<group>"; };
@@ -70,11 +74,13 @@
 				3692FE14AC2D5C9B1B5667C9 /* KeyCombo.swift */,
 				DA8B7B4488AC516173A98E3C /* LayoutBoard.swift */,
 				1D5EEE3E2634F56B9F1DAAF3 /* Layouts.swift */,
+				8C35393DD6D9005BFE3E00E7 /* MadoWariURL.swift */,
 				8EB5236C84ED9FB2CA9D7075 /* Presets.swift */,
 				EF14F5141697AF13DD729558 /* SettingsView.swift */,
 				7033F39C4E19B20D659F6CBC /* Shortcuts.swift */,
 				D2A1E62FFB2C4F3BC3BA0A63 /* StageManager.swift */,
 				3D7C0DCD086D8F82C54F5045 /* Toast.swift */,
+				B19D427EF3B86876B8E5EDCE /* URLCommands.swift */,
 				D53FE5C9E2E0C28EDC3A66DD /* WindowList.swift */,
 				A65388FF4636A07F62D27719 /* WindowMover.swift */,
 			);
@@ -198,11 +204,13 @@
 				5E103962AB20792F86445810 /* KeyCombo.swift in Sources */,
 				EC531403B6447A0879E566A5 /* LayoutBoard.swift in Sources */,
 				EF6137921996D25F7765BAE1 /* Layouts.swift in Sources */,
+				742582E84E3EBC9AB27F743C /* MadoWariURL.swift in Sources */,
 				01FE0C403C5558BF1E14068A /* Presets.swift in Sources */,
 				F6396FEB40F108AF851C1069 /* SettingsView.swift in Sources */,
 				A41FCE6D7F1306CE3A03088A /* Shortcuts.swift in Sources */,
 				6C92DA22FC12C0F8477D3D11 /* StageManager.swift in Sources */,
 				9D40186DB4DA1CF07DDB0E1E /* Toast.swift in Sources */,
+				EBAF3465E50734E87D017B2F /* URLCommands.swift in Sources */,
 				2A4B56CB56B71E38C75BF827 /* WindowList.swift in Sources */,
 				C7D26581C8655714A3B07B01 /* WindowMover.swift in Sources */,
 			);

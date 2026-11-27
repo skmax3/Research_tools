@@ -20,6 +20,8 @@
 | `Geometry.swift` | 場所（画面に対する割合）→ ウィンドウの枠、座標変換、最小サイズに合わせた並び直し（`Fit`） ※テストあり |
 | `Presets.swift` | 配置プリセットの形・初期値、よく使うアプリ ※テストあり |
 | `WindowMover.swift` | アクセシビリティ API でウィンドウを読む・動かす。フルスクリーン解除、AI と並べる、プリセット |
+| `MadoWariURL.swift` | URL スキーム `madowari://run/<id>` の解析 ※テストあり |
+| `URLCommands.swift` | 直前に前面だったアプリの記録（`FrontAppTracker`）と、URL を受けたときの前面の復帰 |
 | `StageManager.swift` | ステージマネージャのオン・オフを読む・切り替える（まとめて並べる前にオフにする） |
 | `Desktops.swift` | デスクトップの切り替え（システムのキーを送る）、今のデスクトップに見えているウィンドウ |
 | `EdgeLogic.swift` | 境目でカーソルを止める判定 ※テストあり |
@@ -52,4 +54,7 @@
 - アプリの最小サイズは `AppSettings.minSizes`（バンドル ID → pt）。測る・覚えるのは `WindowMover.measureMinSize` / `learnMinSize`、
   配置パネルの警告・おすすめは `LayoutBoardModel` の `fits` / `slotNote` / `recommendation`（判定の計算は `Fit.check` / `Fit.recommend`、テストあり）。
 - ⌃⌥Z の「まとめて戻す」は `WindowMover` の `beginBatch` / `endBatch`（その間の `move` と `hideApp` を記録）。まとめて動かす処理を足したら、この 2 つで囲む。
+- **ショートカットの `id` は URL スキーム `madowari://run/<id>` の公開名でもある**（Logi Options+ などに登録される）。あとで変えない・重複させない（テストが確かめる）。
+  `application(_:open:)`（App.swift）→ `Shortcut.named(id)` → `FrontAppTracker.restoreFront` で直前のアプリを前面に戻す → `perform`。
+  URL を開くと窓割りが前面になり、「手前のウィンドウ」が変わるため。`CFBundleURLTypes` は `project.yml` と `Config/Info.plist` の両方にある。
 - 返答・UI・コメントは日本語。外部ライブラリは使わない。

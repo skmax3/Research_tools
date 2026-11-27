@@ -1,5 +1,5 @@
 // 計算部分の確認（GitHub Actions で実行:
-//   swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Sources/Layouts.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
+//   swiftc Sources/Geometry.swift Sources/Presets.swift Sources/EdgeLogic.swift Sources/KeyCombo.swift Sources/Layouts.swift Sources/MadoWariURL.swift Sources/Shortcuts.swift Tests/main.swift -o /tmp/geometry-check && /tmp/geometry-check）
 import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
@@ -271,6 +271,39 @@ do {
     check("隣 上", Neighbor.find(from: rb, candidates: all, dir: .up) == 2)
     check("隣 なし", Neighbor.find(from: l, candidates: all, dir: .left) == nil)
     check("隣 同じ場所は除く", Neighbor.find(from: l, candidates: [l], dir: .right) == nil)
+}
+
+// URL スキーム madowari://run/<ショートカットの id>
+do {
+    func parsed(_ s: String) -> String? { URL(string: s).flatMap { MadoWariURL.shortcutID(from: $0) } }
+    check("URL 基本", parsed("madowari://run/left") == "left")
+    check("URL ハイフン", parsed("madowari://run/third-left") == "third-left")
+    check("URL プリセット", parsed("madowari://run/preset1") == "preset1")
+    check("URL パネル", parsed("madowari://run/panel") == "panel")
+    check("URL 末尾の /", parsed("madowari://run/left/") == "left")
+    check("URL 大文字小文字", parsed("MADOWARI://RUN/Left") == "left")
+    check("URL クエリ・# は無視", parsed("madowari://run/left?x=1#y") == "left")
+    check("URL 別のスキーム", parsed("https://run/left") == nil)
+    check("URL 別のホスト", parsed("madowari://open/left") == nil)
+    check("URL id なし", parsed("madowari://run") == nil && parsed("madowari://run/") == nil)
+    check("URL 階層が多い", parsed("madowari://run/left/right") == nil)
+    check("URL 長すぎる id", parsed("madowari://run/" + String(repeating: "a", count: 65)) == nil)
+
+    // すべてのショートカットが URL から引ける。id は URL の公開名なので、重複させない・URL に使える文字だけにする
+    let ids = Shortcut.all.map(\.id)
+    check("id 重複なし", Set(ids).count == ids.count)
+    let badIDs = ids.filter { id in
+        !(id == id.lowercased() && id.allSatisfy { c in c.isLetter || c.isNumber || c == "-" })
+    }
+    check("id は小文字・数字・ハイフンだけ", badIDs.isEmpty, "\(badIDs)")
+    let unresolved = ids.filter { id in
+        parsed("madowari://run/\(id)").flatMap { Shortcut.named($0) }?.id != id
+    }
+    check("全ショートカットが URL から引ける", unresolved.isEmpty, "\(unresolved)")
+    for id in ["left", "right", "panel", "ai", "tidy", "undo", "preset1", "preset9"] {
+        check("id「\(id)」がある（README に載せている）", Shortcut.named(id) != nil)
+    }
+    check("未知の id", Shortcut.named("no-such-id") == nil)
 }
 
 print(failed == 0 ? "\nすべて成功" : "\n\(failed) 件失敗")

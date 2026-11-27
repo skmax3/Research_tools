@@ -25,6 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var hotKeys: [HotKey] = []
     private var subs: Set<AnyCancellable> = []
+    /// 直前に前面だったアプリ（URL スキームで呼ばれたとき、そのアプリのウィンドウを動かすため）。起動してすぐ記録を始める
+    private let frontTracker = FrontAppTracker()
+    /// 起動処理が終わったか。URL で起動したとき、終わるまで URL を保留する
+    private var launched = false
+    private var pendingURLs: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // すでに別の窓割りが動いていたら終了させる（Xcode から実行したときと、インストール版が二重に動かないように）
@@ -65,6 +70,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !WindowMover.trusted {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.askTrust(first: true) }
         }
+
+        launched = true
+        let pending = pendingURLs
+        pendingURLs = []
+        pending.forEach { handleURL($0) }
+    }
+
+    // MARK: - URL スキーム（madowari://run/<ショートカットの id>）
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if launched { urls.forEach { handleURL($0) } } else { pendingURLs += urls }
+    }
+
+    /// 例: madowari://run/left → 直前に前面だったアプリを前面に戻してから、ショートカット「left」と同じ操作を実行する。
+    /// ショートカットのキーをオフにしていても使える。形の違う URL・未知の id は、何もせずログだけ残す
+    private func handleURL(_ url: URL) {
+        guard let id = MadoWariURL.shortcutID(from: url) else {
+            urlLog.error("形の違う URL を無視しました: \(url.absoluteString, privacy: .public)")
+            return
+        }
+        guard let shortcut = Shortcut.named(id) else {
+            urlLog.error("未知の id を無視しました: \(id, privacy: .public)")
+            return
+        }
+        urlLog.info("URL から実行: \(id, privacy: .public)（直前のアプリ: \(self.frontTracker.last?.localizedName ?? "なし", privacy: .public)）")
+        frontTracker.restoreFront { [weak self] in self?.perform(shortcut.action) }
     }
 
     // MARK: - ショートカット

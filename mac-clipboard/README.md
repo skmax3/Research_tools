@@ -30,6 +30,27 @@ Web 版（`clipboard/`）と違い、ネイティブアプリなのでバック�
 
 自動で貼り付けるには、初回に「システム設定 → プライバシーとセキュリティ → アクセシビリティ」で ClipShelf を許可する。許可するまでは「コピーまで」で、⌘V は自分で押す。
 
+## URL スキーム（Logi Options+ などから呼ぶ）
+`clipshelf://` で、ほかのアプリ・ボタン・ランチャーからパネルを開ける。パネルを開くだけで、URL だけで何かが貼られることはない（選んだときだけ貼られる）。
+
+| URL | 動き |
+|---|---|
+| `clipshelf://open` | パネルを開く（⇧⌘X と同じ。絞り込みは「すべて」に戻る） |
+| `clipshelf://open?kind=text` | 「テキスト」だけで絞り込んで開く |
+| `clipshelf://open?kind=link` / `image` / `video` / `file` | リンク／画像／動画／ファイルだけで絞り込んで開く |
+
+- `kind` が空・知らない値のときは、絞り込みなしで開く。知らないコマンド（`clipshelf://close` など）は何もしない。
+- 貼り付け先は「直前に前面だったアプリ」。URL で開いて前面のアプリが変わっても、貼る前にそのアプリを前面に戻してから ⌘V を送る（Dock に出る通常のアプリだけを貼り付け先として覚える。Logi のエージェントなどは対象外）。
+- 使えるようになるのは、`scripts/install.sh`（または「最新版にアップデート…」）で `/Applications/ClipShelf.app` に入れて、一度起動したあと。Xcode から実行した版と二重にあると、どちらが呼ばれるか決まらないので、インストール版だけにする。
+- ターミナルで試す: `open "clipshelf://open?kind=text"`
+
+### Logi Options+ のアクションリングに登録する
+1. Logi Options+ を開き、アクションリング（またはボタンの割り当て）で、空いているスロットを選ぶ
+2. アクションに「**ウェブページを開く**」（Open Webpage / Open URL）を選ぶ
+3. URL に `clipshelf://open` を入れて保存（種類別のスロットは `clipshelf://open?kind=image` など、スロットごとに作る）
+4. ボタンを押して、パネルが開き、選んだものが今使っているアプリに貼られるか確かめる
+- 「ウェブページを開く」がブラウザで開こうとして `clipshelf://` を受け付けないときは、アクションを「アプリケーションを開く」ではなく「キーストローク」（⇧⌘X）に切り替える（種類別の絞り込みはできなくなる）
+
 ## iPhone との受け渡し（AirDrop の代わり）
 iPhone で撮った写真・スクショやテキストを、AirDrop なしで Mac に送る（Mac → iPhone も可）。どのネットワークでも使える。
 中継サーバー（`clip-relay/`、Cloudflare）には**端末側で暗号化したデータ**だけを置くので、サーバーは中身を読めない。24時間で自動的に消える。
@@ -89,6 +110,8 @@ iPhone で撮った写真・スクショやテキストを、AirDrop なしで M
   - `ImageUtil.swift` / `ImageRecompressor.swift`: 画像の変換、古い PNG を JPEG にするか決めて変換（テストあり）
   - `PanelController.swift` / `PanelView.swift`: 下から出るパネル（SwiftUI）
   - `Paster.swift`: 貼り付け（CGEvent で ⌘V を送る）
+  - `FrontApp.swift`: 直前に前面だったアプリを覚えて、貼る前にそのアプリを前面に戻す
+  - `DeepLink.swift`: URL スキーム `clipshelf://` の解析（テストあり）
   - `SyncCrypto.swift`: iPhone との暗号（`clip-send/` と共通。固定の値で一致をテスト）
   - `Sync.swift`: 中継サーバーとの送受信（WebSocket＋30秒ごとの確認）
   - `PairingWindow.swift`: ペアリング画面（QR）

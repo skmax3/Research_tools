@@ -29,10 +29,10 @@ jobs:
         working-directory: mac-clipboard
         run: xcodegen generate
 
-      - name: テスト（テキスト変換・暗号・履歴の上限）
+      - name: テスト（テキスト変換・暗号・履歴の上限・URL スキーム）
         working-directory: mac-clipboard
         run: |
-          swiftc Sources/Transforms.swift Sources/SyncCrypto.swift Sources/StoragePolicy.swift Sources/ImageUtil.swift Sources/ImageRecompressor.swift Tests/main.swift -o /tmp/transforms-check
+          swiftc Sources/Transforms.swift Sources/SyncCrypto.swift Sources/StoragePolicy.swift Sources/ImageUtil.swift Sources/ImageRecompressor.swift Sources/DeepLink.swift Tests/main.swift -o /tmp/transforms-check
           /tmp/transforms-check
 
       - name: ビルド（署名なし）

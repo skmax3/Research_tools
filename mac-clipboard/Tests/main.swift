@@ -201,5 +201,33 @@ check("軽くする: 小さくならない単色の図は変えない", String(I
 check("軽くする: PNG ではないデータは変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0xFF, 0xD8, 0xFF, 0xE0, 0, 0])) == nil), "true")
 check("軽くする: 壊れた PNG は変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3])) == nil), "true")
 
+// URL スキーム（DeepLink.swift）
+func link(_ s: String) -> String {
+    guard let url = URL(string: s) else { return "URLにならない" }
+    switch DeepLink.parse(url) {
+    case .none: return "無視"
+    case .open(let kind)?: return "open:" + (kind ?? "すべて")
+    }
+}
+check("URL: open", link("clipshelf://open"), "open:すべて")
+check("URL: open/（末尾の /）", link("clipshelf://open/"), "open:すべて")
+for kind in DeepLink.kinds {
+    check("URL: kind=\(kind)", link("clipshelf://open?kind=\(kind)"), "open:\(kind)")
+}
+check("URL: 大文字でも読める", link("CLIPSHELF://OPEN?kind=Image"), "open:image")
+check("URL: 前後の空白は無視", link("clipshelf://open?kind=%20text%20"), "open:text")
+check("URL: 知らない kind は絞り込みなしで開く", link("clipshelf://open?kind=movie"), "open:すべて")
+check("URL: 空の kind は絞り込みなしで開く", link("clipshelf://open?kind="), "open:すべて")
+check("URL: 値のない kind は絞り込みなしで開く", link("clipshelf://open?kind"), "open:すべて")
+check("URL: kind が複数なら最初のもの", link("clipshelf://open?kind=link&kind=text"), "open:link")
+check("URL: 別の項目は無視して開く", link("clipshelf://open?foo=1&kind=file"), "open:file")
+check("URL: clipshelf:open の形", link("clipshelf:open?kind=video"), "open:video")
+check("URL: clipshelf:///open の形", link("clipshelf:///open?kind=image"), "open:image")
+check("URL: 知らないコマンドは何もしない", link("clipshelf://close"), "無視")
+check("URL: open に似た名前は何もしない", link("clipshelf://openx"), "無視")
+check("URL: コマンドなしは何もしない", link("clipshelf://"), "無視")
+check("URL: 別のスキームは何もしない", link("https://open/?kind=image"), "無視")
+check("URL: kind の候補は ClipCategory と同じ並び", DeepLink.kinds.joined(separator: ","), "text,link,image,video,file")
+
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")

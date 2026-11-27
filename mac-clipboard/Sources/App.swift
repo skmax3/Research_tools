@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var paster: Paster!
     private var panel: PanelController!
     private var sync: SyncManager!
+    private let front = FrontAppTracker()
+    /// 起動の直後に、準備ができる前に届いた URL
+    private var pendingLinks: [DeepLink] = []
     private var pairing: PairingWindowController!
     private var flashToken = 0
     private var statusItem: NSStatusItem!
@@ -68,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 || (item.kind == .files && item.category == .image && item.paths.count == 1)
             if sendable { self.sync.send([item], quiet: true) }
         }
-        panel = PanelController(store: store, paster: paster, sync: sync) { [weak self] in self?.pairing.show() }
+        panel = PanelController(store: store, paster: paster, sync: sync, front: front) { [weak self] in self?.pairing.show() }
         setupStatusItem()
         sync.start()
 
@@ -82,6 +85,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // ⇧⌘X でパネルを出す（Carbon のホットキー。アクセシビリティの許可は不要）
         registerHotKey(retry: true)
+
+        // 準備ができる前に届いた URL を処理する
+        let waiting = pendingLinks
+        pendingLinks = []
+        waiting.forEach(handle)
+    }
+
+    // MARK: - URL スキーム（clipshelf://open[?kind=image]。Logi Options+ のアクションリングなどから）
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for link in urls.compactMap(DeepLink.parse) {
+            if panel == nil { pendingLinks.append(link) } else { handle(link) }
+        }
+    }
+
+    private func handle(_ link: DeepLink) {
+        switch link {
+        case .open(let kind):
+            // 知らない kind は nil（絞り込みなし）
+            panel.show(kind: kind.flatMap(ClipCategory.init(rawValue:)))
+        }
     }
 
     private func registerHotKey(retry: Bool) {

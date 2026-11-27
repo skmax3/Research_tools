@@ -28,6 +28,11 @@ targets:
         CFBundleName: ClipShelf
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # URL スキーム clipshelf://（Logi Options+ のアクションリングなどから呼ぶ。解析は Sources/DeepLink.swift）
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: io.github.skmax3.clipshelf
+            CFBundleURLSchemes: [clipshelf]
         CFBundleDevelopmentRegion: ja
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"

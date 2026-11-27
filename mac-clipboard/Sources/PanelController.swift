@@ -63,6 +63,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let store: ClipStore
     private let paster: Paster
     private let sync: SyncManager
+    private let front: FrontAppTracker
     private let onNeedPairing: () -> Void
     private let state = PanelState()
     private var panel: KeyPanel!
@@ -70,10 +71,11 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let panelHeight: CGFloat = 364
     private var askedTrust = false
 
-    init(store: ClipStore, paster: Paster, sync: SyncManager, onNeedPairing: @escaping () -> Void) {
+    init(store: ClipStore, paster: Paster, sync: SyncManager, front: FrontAppTracker, onNeedPairing: @escaping () -> Void) {
         self.store = store
         self.paster = paster
         self.sync = sync
+        self.front = front
         self.onNeedPairing = onNeedPairing
         super.init()
         build()
@@ -156,6 +158,14 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// URL（clipshelf://open）から開く。種類（nil ならすべて）で絞り込んだ状態にする。
+    /// show() が表示の状態を戻すので、絞り込みはそのあとに設定する。すでに開いていれば、絞り込みだけ変える
+    func show(kind: ClipCategory?) {
+        show()
+        state.kind = kind
+        state.app = nil
+    }
+
     func hide(then completion: (() -> Void)? = nil) {
         guard visible else { completion?(); return }
         visible = false
@@ -198,6 +208,16 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// パネルを閉じたあと、貼り付け先のアプリに ⌘V を送る。
+    /// 貼り付け先は「直前に前面だったアプリ」。URL から開いたときなどで前面が変わっていたら、そのアプリを前面に戻してから送る
+    private func pasteIntoTarget() {
+        guard canAutoPaste() else { return }
+        front.restoreTarget {
+            // パネルが消えて元のアプリにキー入力が戻るのを少し待ってから ⌘V
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
+        }
+    }
+
     /// 自動貼り付けができるか確認。できなければ（最初の1回だけ）許可を求める
     private func canAutoPaste() -> Bool {
         guard Settings.autoPaste else { return false }
@@ -212,11 +232,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func pasteOne(_ item: ClipItem, plain: Bool) {
         guard paster.copy(item, plain: plain) else { NSSound.beep(); return }
         store.moveToTop(item.id)
-        hide { [weak self] in
-            guard let self, self.canAutoPaste() else { return }
-            // パネルが消えて元のアプリにキー入力が戻るのを少し待ってから ⌘V
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
-        }
+        hide { [weak self] in self?.pasteIntoTarget() }
     }
 
     /// テキストを変換して貼り付ける。変換結果は履歴にも新しい項目として残す
@@ -231,10 +247,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         new.appID = Bundle.main.bundleIdentifier ?? ""
         new.hash = ClipStore.hash(Data(out.utf8))
         store.add(new)
-        hide { [weak self] in
-            guard let self, self.canAutoPaste() else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
-        }
+        hide { [weak self] in self?.pasteIntoTarget() }
     }
 
     /// iPhone へ送る。まだペアリングしていなければ、ペアリング画面を開く
@@ -281,16 +294,15 @@ final class PanelController: NSObject, NSWindowDelegate {
         if list.count == 1 { pasteOne(list[0], plain: false); return }
 
         if together, paster.copyTogether(list) {
-            hide { [weak self] in
-                guard let self, self.canAutoPaste() else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { Paster.sendPaste() }
-            }
+            hide { [weak self] in self?.pasteIntoTarget() }
             return
         }
         hide { [weak self] in
             guard let self else { return }
             if self.canAutoPaste() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.pasteSequence(list, index: 0) }
+                self.front.restoreTarget {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.pasteSequence(list, index: 0) }
+                }
             } else {
                 // 自動で貼れないときは、テキストだけでもまとめてコピーしておく
                 _ = self.paster.copyTogether(list.filter { $0.kind == .text })

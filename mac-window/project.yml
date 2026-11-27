@@ -30,6 +30,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: ja
         LSUIElement: true
+        # madowari://run/<ショートカットの id>（Logi Options+ の「ウェブページを開く」などから呼ぶ。使い方は README）
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.skmax3.madowari
+            CFBundleURLSchemes:
+              - madowari
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: ""
     settings:

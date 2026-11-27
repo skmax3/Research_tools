@@ -17,14 +17,14 @@ enum DeepLink: Equatable {
     static func parse(_ url: URL) -> DeepLink? {
         guard url.scheme?.lowercased() == scheme else { return nil }
 
-        // clipshelf://open … は host、clipshelf:open や clipshelf:///open … は path に入る
-        var command = (url.host ?? "").lowercased()
-        if command.isEmpty {
-            command = url.path.split(separator: "/").first.map { String($0).lowercased() } ?? ""
-        }
+        // コマンドは、スキームの直後（// や / があれば読み飛ばす）から、/ ? # : の手前まで。
+        // clipshelf://open も clipshelf:open も clipshelf:///open も同じに読む（host / path の扱いは形で変わるので使わない）
+        var rest = Substring(url.absoluteString.dropFirst(scheme.count + 1))
+        rest = rest.drop { $0 == "/" }
+        let command = String(rest.prefix { !"/?#:".contains($0) }).lowercased()
         guard command == "open" else { return nil }
 
-        let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+        let value = URLComponents(string: url.absoluteString)?
             .queryItems?.first { $0.name.lowercased() == "kind" }?.value?
             .trimmingCharacters(in: .whitespaces).lowercased()
         let kind = value.flatMap { kinds.contains($0) ? $0 : nil }

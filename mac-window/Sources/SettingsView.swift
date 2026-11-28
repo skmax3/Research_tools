@@ -509,11 +509,16 @@ struct GeneralTab: View {
                 Toggle("画面の境目でカーソルを少し止める", isOn: $settings.edgeBarrier)
                 if settings.edgeBarrier {
                     HStack {
-                        Slider(value: $settings.edgeHold, in: 0.1...1.5, step: 0.1) { Text("止める時間") }
+                        Slider(value: $settings.edgeHold, in: 0.1...1.5, step: 0.1) { Text("下へ動かすとき止める時間") }
                         Text(String(format: "%.1f 秒", settings.edgeHold)).monospacedDigit().frame(width: 60, alignment: .trailing)
                     }
+                    HStack {
+                        Slider(value: $settings.edgeHoldUp, in: 0...1.5, step: 0.1) { Text("上へ動かすとき止める時間") }
+                        Text(settings.edgeHoldUp == 0 ? "止めない" : String(format: "%.1f 秒", settings.edgeHoldUp))
+                            .monospacedDigit().frame(width: 60, alignment: .trailing)
+                    }
                     Picker("止める境目", selection: $settings.edgeAllSides) {
-                        Text("上下だけ（Dock とメニューバー）").tag(false)
+                        Text("上下だけ（Dock のため）").tag(false)
                         Text("上下左右すべて").tag(true)
                     }
                     .pickerStyle(.segmented)
@@ -521,7 +526,7 @@ struct GeneralTab: View {
             } header: {
                 Text("境目でカーソルを止める")
             } footer: {
-                Text("4K モニターの下に MacBook を置いていると、Dock を出そうとしたカーソルが MacBook 側へ抜けてしまいます。オンにすると、境目でカーソルがいったん止まって Dock が出ます。MacBook から上へ動かすときも、MacBook のメニューバーで止まります。そのまま押し続ければ隣の画面へ移れます。\(Shortcut.named("barrier").flatMap { settings.combo(for: $0)?.label } ?? "") でオン・オフできます。")
+                Text("4K モニターの下に MacBook を置いていると、Dock を出そうとしたカーソルが MacBook 側へ抜けてしまいます。オンにすると、境目でカーソルがいったん止まって Dock が出ます。MacBook から上の 4K モニターへ動かすときは、4K モニターの下の端（Dock が出る場所）にカーソルが着いて、そこにしばらく留まります。止める時間は、下へ動かすときと上へ動かすときで別々に変えられます（上は 0 で止めない）。下へ動かすときは、そのまま押し続ければ隣の画面へ移れます。\(Shortcut.named("barrier").flatMap { settings.combo(for: $0)?.label } ?? "") でオン・オフできます。")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

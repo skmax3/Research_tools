@@ -130,9 +130,45 @@ check("境目 数え直し", s5 == CGPoint(x: 1010, y: 1439))
 // 下に画面がない所（MacBook の横）は、macOS が止めるので何もしない
 var eb3 = EdgeBarrier()
 check("境目 下に画面なし", eb3.filter(from: CGPoint(x: 100, y: 1430), to: CGPoint(x: 100, y: 1445), screens: both, now: t0) == nil)
-// 上へ戻るとき（MacBook → Dell）も、MacBook の上の端（メニューバー）で止める
-check("境目 上へも止める（メニューバー）", eb3.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
-      == CGPoint(x: 1000, y: 1440))
+// 上へ動かすとき（MacBook → Dell）は、上の画面（Dell）の下端にカーソルを置いて留める（下へ動かすときに止まる場所と同じ）
+var up = EdgeBarrier()
+up.holdUp = 0.4
+let u1 = up.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+check("境目 上へは上の画面の下端", u1 == CGPoint(x: 1000, y: 1439), "\(String(describing: u1))")
+// 勢いよく上へ動かしても、下端に着く
+var upFast = EdgeBarrier()
+check("境目 上へ速く動かしても下端", upFast.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1100), screens: both, now: t0)
+      == CGPoint(x: 1000, y: 1439))
+// 留めている間は、さらに上へ動かそうとしても下端のまま（横には動ける）
+let u2 = up.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1010, y: 1420), screens: both, now: t0.addingTimeInterval(0.2))
+check("境目 留めている間は下端のまま", u2 == CGPoint(x: 1010, y: 1439), "\(String(describing: u2))")
+// 時間がたてば通す
+check("境目 時間がたてば通す", up.filter(from: CGPoint(x: 1010, y: 1439), to: CGPoint(x: 1010, y: 1420), screens: both,
+                                          now: t0.addingTimeInterval(0.45)) == nil)
+// 時間は設定で変えられる（1.0 秒なら 0.9 秒後もまだ留める）
+var up2 = EdgeBarrier()
+up2.holdUp = 1.0
+_ = up2.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+check("境目 上の時間を長くできる", up2.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1420), screens: both,
+                                             now: t0.addingTimeInterval(0.9)) == CGPoint(x: 1000, y: 1439))
+check("境目 上の時間が過ぎたら通す", up2.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1420), screens: both,
+                                               now: t0.addingTimeInterval(1.05)) == nil)
+// 0 なら止めない
+var up0 = EdgeBarrier()
+up0.holdUp = 0
+check("境目 上の時間 0 は止めない", up0.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0) == nil)
+// 下端で留めている間に下へ戻ろうとしたら、下へ動かすときと同じ止め方（Dell の下端で止める）
+var upBack = EdgeBarrier()
+_ = upBack.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+check("境目 下へ戻るときは下の止め方", upBack.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1446), screens: both,
+                                                    now: t0.addingTimeInterval(0.1)) == CGPoint(x: 1000, y: 1439))
+check("境目 下へ戻って押し続けたら通す", upBack.filter(from: CGPoint(x: 1000, y: 1439), to: CGPoint(x: 1000, y: 1446), screens: both,
+                                                      now: t0.addingTimeInterval(0.55)) == nil)
+// 下端から離れたあとは、留めない（画面の途中の動きを押さえない）
+var upLeft = EdgeBarrier()
+_ = upLeft.filter(from: CGPoint(x: 1000, y: 1445), to: CGPoint(x: 1000, y: 1430), screens: both, now: t0)
+check("境目 下端を離れたら押さえない", upLeft.filter(from: CGPoint(x: 1000, y: 700), to: CGPoint(x: 1000, y: 650), screens: both,
+                                                  now: t0.addingTimeInterval(0.1)) == nil)
 // 左右の境目は、上下左右すべての設定のときだけ
 let side = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1000, y: 0, width: 1000, height: 800)]
 var eb4 = EdgeBarrier()

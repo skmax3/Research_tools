@@ -39,6 +39,8 @@ final class AppSettings: ObservableObject {
     @Published var edgeBarrier: Bool { didSet { d.set(edgeBarrier, forKey: "edgeBarrier") } }
     /// 止める時間（秒）
     @Published var edgeHold: Double { didSet { d.set(edgeHold, forKey: "edgeHold") } }
+    /// 上へ動かして上の画面へ入るとき、上の画面の下端に留める時間（秒）。0 なら止めない
+    @Published var edgeHoldUp: Double { didSet { d.set(edgeHoldUp, forKey: "edgeHoldUp") } }
     /// 上下左右すべての境目で止める（オフなら下の境目だけ）
     @Published var edgeAllSides: Bool { didSet { d.set(edgeAllSides, forKey: "edgeAllSides") } }
 
@@ -66,6 +68,7 @@ final class AppSettings: ObservableObject {
             "tidyMerge": true,
             "edgeBarrier": true,
             "edgeHold": 0.4,
+            "edgeHoldUp": 0.4,
             "edgeAllSides": false,
         ])
         gap = d.double(forKey: "gap")
@@ -82,6 +85,7 @@ final class AppSettings: ObservableObject {
         tidyMerge = d.bool(forKey: "tidyMerge")
         edgeBarrier = d.bool(forKey: "edgeBarrier")
         edgeHold = d.double(forKey: "edgeHold")
+        edgeHoldUp = d.double(forKey: "edgeHoldUp")
         edgeAllSides = d.bool(forKey: "edgeAllSides")
         presets = Self.load([Preset].self, "presets", from: d) ?? Preset.defaults
         shortcutOverrides = Self.load([String: KeyCombo].self, "shortcutOverrides", from: d) ?? [:]

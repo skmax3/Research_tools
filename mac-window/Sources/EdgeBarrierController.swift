@@ -101,6 +101,7 @@ final class EdgeBarrierController {
         var prev = back
         if let last, hypot(last.x - back.x, last.y - back.y) < 40 { prev = last }
         logic.hold = settings.edgeHold
+        logic.holdUp = settings.edgeHoldUp
         logic.allSides = settings.edgeAllSides
         if let p = logic.filter(from: prev, to: next, screens: screens, now: Date()) {
             event.location = p

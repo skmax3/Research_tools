@@ -166,6 +166,21 @@ final class PanelController: NSObject, NSWindowDelegate {
         state.app = nil
     }
 
+    /// URL（clipshelf://paste）から: 履歴の新しいほうから index 番目（種類を指定したら、その種類の中で）を、今のアプリに貼る。なければ false
+    func pasteFromHistory(index: Int, kind: ClipCategory?) -> Bool {
+        let list = store.items.filter { kind == nil || $0.category == kind }
+        guard list.indices.contains(index - 1) else { return false }
+        pasteOne(list[index - 1], plain: false)
+        return true
+    }
+
+    /// URL（clipshelf://transform）から: いちばん新しいテキストを変換して、今のアプリに貼る。テキストがなければ false
+    func transformLatestText(_ t: TextTransform) -> Bool {
+        guard let item = store.items.first(where: { $0.kind == .text }) else { return false }
+        transform(item, t)
+        return true
+    }
+
     func hide(then completion: (() -> Void)? = nil) {
         guard visible else { completion?(); return }
         visible = false

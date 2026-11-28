@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let compressMenu = NSMenu()
     private let loginItem = NSMenuItem(title: "ログイン時に起動", action: #selector(AppDelegate.toggleLogin), keyEquivalent: "")
     private let autoSendItem = NSMenuItem(title: "コピーしたら、ほかの端末へ自動で送る", action: #selector(AppDelegate.toggleAutoSend), keyEquivalent: "")
+    private let urlActionsItem = NSMenuItem(title: "URL からの貼り付け・送信・変換を許可（Logi Options+ など）", action: #selector(AppDelegate.toggleURLActions), keyEquivalent: "")
     private let pairItem = NSMenuItem(title: "端末のペアリング…", action: #selector(AppDelegate.openPairing), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "最新版にアップデート…", action: #selector(AppDelegate.update), keyEquivalent: "")
     private let trustItem = NSMenuItem(title: "自動貼り付けを許可する（アクセシビリティ）…", action: #selector(AppDelegate.openAccessibility), keyEquivalent: "")
@@ -67,9 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // コピーしたら、ほかの端末へ自動で送る（設定がオンのときだけ。テキストと画像）
         watcher.onCaptured = { [weak self] item in
             guard let self, Settings.syncAutoSend, self.sync.paired else { return }
-            let sendable = item.kind == .text || item.kind == .image
-                || (item.kind == .files && item.category == .image && item.paths.count == 1)
-            if sendable { self.sync.send([item], quiet: true) }
+            if Self.isSendable(item) { self.sync.send([item], quiet: true) }
         }
         panel = PanelController(store: store, paster: paster, sync: sync, front: front) { [weak self] in self?.pairing.show() }
         setupStatusItem()
@@ -100,13 +99,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// ほかの端末へ送れるもの（テキストと画像）
+    private static func isSendable(_ item: ClipItem) -> Bool {
+        item.kind == .text || item.kind == .image
+            || (item.kind == .files && item.category == .image && item.paths.count == 1)
+    }
+
     private func handle(_ link: DeepLink) {
+        // 開くだけのものは、いつでも動く。貼る・送る・変える・止めるものは、メニューで許可したときだけ
+        // （ウェブページなどが勝手に呼べないように）
+        if link.needsPermission, !Settings.urlActions {
+            flashStatus(symbol: "hand.raised.fill", title: " URL の操作は未許可", seconds: 5)
+            NSSound.beep()
+            return
+        }
         switch link {
         case .open(let kind):
             // 知らない kind は nil（絞り込みなし）
             panel.show(kind: kind.flatMap(ClipCategory.init(rawValue:)))
+        case .paste(let index, let kind):
+            if !panel.pasteFromHistory(index: index, kind: kind.flatMap(ClipCategory.init(rawValue:))) { NSSound.beep() }
+        case .transform(let type):
+            guard let t = TextTransform(rawValue: type), panel.transformLatestText(t) else { NSSound.beep(); return }
+        case .send:
+            guard sync.paired else { pairing.show(); return }
+            guard let item = store.items.first, Self.isSendable(item) else { NSSound.beep(); return }
+            sync.send([item])
+        case .pause(let mode):
+            watcher.paused = mode == .toggle ? !watcher.paused : mode == .on
+            flashStatus(symbol: watcher.paused ? "pause.circle.fill" : "play.circle.fill",
+                        title: watcher.paused ? " 記録を一時停止" : " 記録を再開", seconds: 3)
         }
     }
+
+    @objc private func toggleURLActions() { Settings.urlActions.toggle() }
 
     private func registerHotKey(retry: Bool) {
         hotKey = HotKey(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(cmdKey | shiftKey)) { [weak self] in
@@ -144,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(autoSendItem)
         menu.addItem(pairItem)
+        menu.addItem(urlActionsItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "保存フォルダを開く", action: #selector(openFolder), keyEquivalent: ""))
         for mb in StoragePolicy.choicesMB {
@@ -178,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pairItem.title = "端末のペアリング…（iPhone・Windows・Android）"
         pairItem.state = sync.paired && sync.connected ? .on : .off
         autoSendItem.state = Settings.syncAutoSend ? .on : .off
+        urlActionsItem.state = Settings.urlActions ? .on : .off
         let used = ByteCountFormatter.string(fromByteCount: store.totalBytes(), countStyle: .file)
         storageItem.title = "履歴の容量: \(used) ／ 上限 \(StoragePolicy.label(mb: Settings.maxStorageMB))"
         for it in storageMenu.items { it.state = it.tag == Settings.maxStorageMB ? .on : .off }
@@ -316,6 +344,12 @@ enum Settings {
     static var syncAutoSend: Bool {
         get { UserDefaults.standard.object(forKey: "syncAutoSend") as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: "syncAutoSend") }
+    }
+
+    /// URL（clipshelf://paste・send・transform・pause）での操作を許可する（最初はオフ。open は、この設定に関係なく動く）
+    static var urlActions: Bool {
+        get { UserDefaults.standard.object(forKey: "urlActions") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "urlActions") }
     }
 
     /// ほかの端末から届いたものを、Mac のクリップボードにも入れる

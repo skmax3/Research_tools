@@ -16,8 +16,10 @@
 		7D9B8E4E4E53EFDA24563543 /* ClipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B2FB36873685A6E4DEDD4D /* ClipStore.swift */; };
 		82F2BBC5918C2932783C596B /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1330D7915932665C16E89969 /* PanelController.swift */; };
 		98F76A186FA610470E7D6AF1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF9F8C49893A48B3DBF44D30 /* Assets.xcassets */; };
+		9ABA2ABA40D808460FC7577F /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83AA7E94398CC0209B600FC8 /* DeepLink.swift */; };
 		A78C0F5B791E58A2B691E503 /* Paster.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA53AAEAF11A9172F9C350D /* Paster.swift */; };
 		B24879B5A07579EE14F93E30 /* SyncCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34882FD041000B693386239 /* SyncCrypto.swift */; };
+		BCB0B52C9B5E6888B3E5A6B9 /* FrontApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95FDD6FCB363F6A01E828B1F /* FrontApp.swift */; };
 		C3613FADD8D8FB8193B765EB /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F972112E56A76BF7E2E7F5E /* App.swift */; };
 		DB8C110FBC7439AE0005FE22 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4A671A69D6B43EB7E287C6 /* PanelView.swift */; };
 		EEBF020F5886F501E60577E6 /* StoragePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084076745281BAA2CF2554A /* StoragePolicy.swift */; };
@@ -36,6 +38,8 @@
 		7084076745281BAA2CF2554A /* StoragePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoragePolicy.swift; sourceTree = "<group>"; };
 		790567B2D8E715E343626452 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		7D31FBFE3C4B0F6400C2AFE8 /* Transforms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transforms.swift; sourceTree = "<group>"; };
+		83AA7E94398CC0209B600FC8 /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
+		95FDD6FCB363F6A01E828B1F /* FrontApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontApp.swift; sourceTree = "<group>"; };
 		A16E7E7B46D52CA8043B4CBC /* PairingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingWindow.swift; sourceTree = "<group>"; };
 		A34882FD041000B693386239 /* SyncCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCrypto.swift; sourceTree = "<group>"; };
 		ACA53AAEAF11A9172F9C350D /* Paster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paster.swift; sourceTree = "<group>"; };
@@ -50,6 +54,8 @@
 			children = (
 				1F972112E56A76BF7E2E7F5E /* App.swift */,
 				01B2FB36873685A6E4DEDD4D /* ClipStore.swift */,
+				83AA7E94398CC0209B600FC8 /* DeepLink.swift */,
+				95FDD6FCB363F6A01E828B1F /* FrontApp.swift */,
 				C68DE1E9AE981B37ADA3EDC8 /* HotKey.swift */,
 				679E6B48B5D096FA9E8D4F16 /* ImageRecompressor.swift */,
 				4C1A7231AE50EF6D70439A21 /* ImageUtil.swift */,
@@ -173,6 +179,8 @@
 			files = (
 				C3613FADD8D8FB8193B765EB /* App.swift in Sources */,
 				7D9B8E4E4E53EFDA24563543 /* ClipStore.swift in Sources */,
+				9ABA2ABA40D808460FC7577F /* DeepLink.swift in Sources */,
+				BCB0B52C9B5E6888B3E5A6B9 /* FrontApp.swift in Sources */,
 				0F112CEB6C064CA1CE2BB6AA /* HotKey.swift in Sources */,
 				18DB8997632123AC84BBB793 /* ImageRecompressor.swift in Sources */,
 				F92F6BFA0B078E70AAED28F3 /* ImageUtil.swift in Sources */,

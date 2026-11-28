@@ -201,5 +201,59 @@ check("軽くする: 小さくならない単色の図は変えない", String(I
 check("軽くする: PNG ではないデータは変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0xFF, 0xD8, 0xFF, 0xE0, 0, 0])) == nil), "true")
 check("軽くする: 壊れた PNG は変えない", String(ImageRecompressor.jpegIfWorthwhile(Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3])) == nil), "true")
 
+// URL スキーム（DeepLink.swift）
+func link(_ s: String) -> String {
+    guard let url = URL(string: s) else { return "URLにならない" }
+    switch DeepLink.parse(url) {
+    case .none: return "無視"
+    case .open(let kind)?: return "open:" + (kind ?? "すべて")
+    case .paste(let n, let kind)?: return "paste:\(n):" + (kind ?? "すべて")
+    case .transform(let type)?: return "transform:" + type
+    case .send?: return "send"
+    case .pause(let mode)?: return "pause:" + mode.rawValue
+    }
+}
+check("URL: open", link("clipshelf://open"), "open:すべて")
+check("URL: open/（末尾の /）", link("clipshelf://open/"), "open:すべて")
+for kind in DeepLink.kinds {
+    check("URL: kind=\(kind)", link("clipshelf://open?kind=\(kind)"), "open:\(kind)")
+}
+check("URL: 大文字でも読める", link("CLIPSHELF://OPEN?kind=Image"), "open:image")
+check("URL: 前後の空白は無視", link("clipshelf://open?kind=%20text%20"), "open:text")
+check("URL: 知らない kind は絞り込みなしで開く", link("clipshelf://open?kind=movie"), "open:すべて")
+check("URL: 空の kind は絞り込みなしで開く", link("clipshelf://open?kind="), "open:すべて")
+check("URL: 値のない kind は絞り込みなしで開く", link("clipshelf://open?kind"), "open:すべて")
+check("URL: kind が複数なら最初のもの", link("clipshelf://open?kind=link&kind=text"), "open:link")
+check("URL: 別の項目は無視して開く", link("clipshelf://open?foo=1&kind=file"), "open:file")
+check("URL: clipshelf:open の形", link("clipshelf:open?kind=video"), "open:video")
+check("URL: clipshelf:///open の形", link("clipshelf:///open?kind=image"), "open:image")
+check("URL: 知らないコマンドは何もしない", link("clipshelf://close"), "無視")
+check("URL: open に似た名前は何もしない", link("clipshelf://openx"), "無視")
+check("URL: コマンドなしは何もしない", link("clipshelf://"), "無視")
+check("URL: 別のスキームは何もしない", link("https://open/?kind=image"), "無視")
+check("URL: paste は最新", link("clipshelf://paste"), "paste:1:すべて")
+check("URL: paste?n=2", link("clipshelf://paste?n=2"), "paste:2:すべて")
+check("URL: paste?n=9", link("clipshelf://paste?n=9"), "paste:9:すべて")
+check("URL: paste の n が範囲外・不正なら最新", link("clipshelf://paste?n=0"), "paste:1:すべて")
+check("URL: paste の n が 10 なら最新", link("clipshelf://paste?n=10"), "paste:1:すべて")
+check("URL: paste の n が文字なら最新", link("clipshelf://paste?n=abc"), "paste:1:すべて")
+check("URL: paste?kind=image&n=3", link("clipshelf://paste?kind=image&n=3"), "paste:3:image")
+check("URL: paste の知らない kind は絞り込みなし", link("clipshelf://paste?kind=zzz"), "paste:1:すべて")
+for t in TextTransform.allCases {
+    check("URL: transform?type=\(t.rawValue)", link("clipshelf://transform?type=\(t.rawValue)"), "transform:\(t.rawValue)")
+}
+check("URL: transform の type は大文字小文字を区別しない", link("clipshelf://transform?type=JOINLINES"), "transform:joinLines")
+check("URL: transform に type がなければ何もしない", link("clipshelf://transform"), "無視")
+check("URL: transform の知らない type は何もしない", link("clipshelf://transform?type=rm"), "無視")
+check("URL: send", link("clipshelf://send"), "send")
+check("URL: pause は切り替え", link("clipshelf://pause"), "pause:toggle")
+check("URL: pause?state=on", link("clipshelf://pause?state=on"), "pause:on")
+check("URL: pause?state=off", link("clipshelf://pause?state=off"), "pause:off")
+check("URL: pause の不正な state は切り替え", link("clipshelf://pause?state=x"), "pause:toggle")
+check("URL: 許可が要るのは open 以外", [
+    DeepLink.open(kind: nil), .paste(index: 1, kind: nil), .transform(type: "joinLines"), .send, .pause(.toggle),
+].map { String($0.needsPermission) }.joined(separator: ","), "false,true,true,true,true")
+check("URL: kind の候補は ClipCategory と同じ並び", DeepLink.kinds.joined(separator: ","), "text,link,image,video,file")
+
 if failed > 0 { print("\(failed) 件失敗"); exit(1) }
 print("すべて成功")
